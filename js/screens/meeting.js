@@ -38,6 +38,18 @@ const REASONS = [
 /* ===================== 効果音（Web Audio で合成） ===================== */
 let actx = null;
 const audio = () => (actx ||= new (window.AudioContext || window.webkitAudioContext)());
+
+// iOS Safari 対策：ユーザー操作の瞬間に resume + 無音バッファ再生で完全アンロックする。
+// 何度呼んでも安全（冪等）。
+function unlockAudio() {
+  try {
+    const ac = audio();
+    if (ac.state === 'suspended') ac.resume();
+    const buf = ac.createBuffer(1, 1, ac.sampleRate);
+    const src = ac.createBufferSource();
+    src.buffer = buf; src.connect(ac.destination); src.start(0);
+  } catch {}
+}
 function clap() {
   try {
     const ac = audio();
@@ -64,10 +76,9 @@ function buzz() {
     });
   } catch {}
 }
-function drumrollSound() {
+function drumrollSound(dur = 1.3) {
   try {
     const ac = audio();
-    const dur = 1.3;
     const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
     const data = buf.getChannelData(0);
     for (let j = 0; j < data.length; j++) {
@@ -184,33 +195,16 @@ function showIntro(root, weekId, result, learning) {
       h('h1', { class: 'mt-8', style: { fontSize: '30px', fontWeight: 900, textAlign: 'center', lineHeight: 1.3 } },
         '今週の献立、\n発表します'.split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('p', { class: 'muted mt-16', style: { fontSize: '13px', textAlign: 'center' } },
-        '右に弾けば採用、左で却下、下で理由つき却下。'),
+        'カードをめくって1日ずつ発表。\n右に弾けば採用、左で却下、下で理由つき却下。'
+          .split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('button', {
         class: 'btn primary mt-32', style: { maxWidth: '240px' },
-        onclick: e => {
-          const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = 'ドゥルルルル…';
-
-          // iOS Safari: ユーザー操作起点で AudioContext をアンロック
-          const ac = audio();
-          if (ac.state === 'suspended') ac.resume();
-
-          // スポットライト演出
-          const spotlight = document.createElement('div');
-          spotlight.className = 'spotlight-overlay';
-          document.body.append(spotlight);
-
-          drumrollSound();
-          const stage = root.querySelector('.meeting-center');
-          stage.classList.add('drumroll-shake');
-          setTimeout(() => {
-            spotlight.classList.add('out');
-            confetti(60);
-            setTimeout(() => spotlight.remove(), 400);
-            startCards(root, weekId, result, learning);
-          }, 1350);
+        onclick: () => {
+          // ここがユーザー操作の起点。iOSの音声アンロックを確実に行う。
+          unlockAudio();
+          startCards(root, weekId, result, learning);
         },
-      }, '🥁 ドラムロール')
+      }, '🥁 発表をはじめる')
     )
   );
 }
@@ -298,18 +292,45 @@ function startCards(root, weekId, result, learning) {
     }
   }
 
-  // 現在の曜日のカードを積む
+  // 現在の曜日のカードを積む（裏向きで出す → タップで発表 → 表に回転）
   function mountTop() {
     stack.innerHTML = '';
     const i = session.dayIndex;
     const dish = session.current[i];
     const card = dishCard(WEEKDAYS[i], dish, i);
     stack.append(card);
-    attachSwipe(card, {
-      onAccept: accept,
-      onRejectQuick: () => reject('skip'),
-      onRejectReason: () => openReasonOverlay(card, reject),
-    });
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      unlockAudio();
+
+      // カードの裏面にスポットライトを当てる
+      const spotlight = h('div', { class: 'spotlight-overlay' });
+      document.body.append(spotlight);
+      card.classList.add('drumroll-shake');
+      drumrollSound(0.85);
+
+      setTimeout(() => {
+        card.classList.remove('drumroll-shake');
+        card.classList.add('revealed');           // ここで表に回転
+        spotlight.classList.add('out');
+        setTimeout(() => spotlight.remove(), 400);
+        confetti(34);
+        // 回転が終わってからスワイプを有効化
+        setTimeout(() => {
+          attachSwipe(card, {
+            onAccept: accept,
+            onRejectQuick: () => reject('skip'),
+            onRejectReason: () => openReasonOverlay(card, reject),
+          });
+        }, 220);
+      }, 880);
+    };
+
+    // 裏面タップ（=発表）で表に
+    card.addEventListener('click', reveal);
   }
 
   renderProgress();
@@ -317,15 +338,26 @@ function startCards(root, weekId, result, learning) {
 }
 
 function dishCard(weekday, dish, idx) {
-  return h('div', { class: 'menu-card', 'data-idx': idx },
-    h('div', { class: 'swipe-badge ok' }, '採用'),
-    h('div', { class: 'swipe-badge ng' }, '却下'),
+  // 表面：料理の中身
+  const front = h('div', { class: 'card-face card-front' },
     h('div', { class: 'mc-day font-display' }, weekday + 'よう日'),
     h('div', { class: 'mc-name' }, dish.name),
     dish.reason && h('div', { class: 'mc-reason' }, dish.reason),
     dish.seasonal && h('div', { class: 'mc-seasonal' }, '🍂 ' + dish.seasonal),
     dish.kidsNote && h('div', { class: 'mc-kids' }, '👶 なぎ：' + dish.kidsNote),
     h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下 ／ ↓ 理由つき却下')
+  );
+  // 裏面：めくる前のデザイン
+  const back = h('div', { class: 'card-face card-back' },
+    h('div', { class: 'cb-mark font-display' }, 'KONDATE'),
+    h('div', { class: 'cb-day' }, weekday + 'よう日'),
+    h('div', { class: 'cb-q' }, '？'),
+    h('div', { class: 'cb-hint' }, 'タップして発表 🥁')
+  );
+  return h('div', { class: 'menu-card', 'data-idx': idx },
+    h('div', { class: 'swipe-badge ok' }, '採用'),
+    h('div', { class: 'swipe-badge ng' }, '却下'),
+    h('div', { class: 'card-flipper' }, back, front)
   );
 }
 
