@@ -6,8 +6,6 @@ import * as fb from '../firebase.js';
 
 // 好きなジャンル選択肢
 const GENRES = ['和食', '洋食', '中華', 'イタリアン', 'エスニック', '韓国料理', '麺類', '丼もの', '鍋もの', 'あっさり系', 'がっつり系'];
-// 使える調理器具選択肢
-const TOOLS = ['電子レンジ', 'オーブン', 'トースター', '圧力鍋', 'ホットプレート', '魚焼きグリル', '炊飯器', 'フライパンのみ'];
 // 食事の目標選択肢
 const GOALS = ['特になし', 'ダイエット中', 'たくさん食べたい', '健康重視', '節約したい'];
 
@@ -86,8 +84,8 @@ async function runLoad(root, onboarding) {
     )
   );
 
-  // 使える調理器具
-  const toolsEl = chipGroup(TOOLS, p.tools || []);
+  // 使える調理器具（自由入力）
+  const toolsEl = tagInput(p.tools || [], '例：電子レンジ、ホットプレート');
   root.append(
     h('div', { class: 'field' },
       h('label', {}, '使える調理器具'),

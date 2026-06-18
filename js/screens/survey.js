@@ -47,6 +47,13 @@ export function render() {
     });
     avoidInput.value = existing.avoid || '';
 
+    const fixedInput = h('textarea', {
+      class: 'textarea',
+      placeholder: '例：月曜はカレー、木曜は外食',
+      style: { minHeight: '64px' },
+    });
+    fixedInput.value = existing.fixed || '';
+
     // エラー表示用要素
     const errMsg = h('p', {
       style: { color: 'var(--ng)', fontSize: '13px', marginTop: '6px', display: 'none' },
@@ -75,6 +82,7 @@ export function render() {
             mood,
             want: wantInput.value.trim(),
             avoid: avoidInput.value.trim(),
+            fixed: fixedInput.value.trim(),
           });
           navigate('home');
         } catch (e) {
@@ -106,6 +114,11 @@ export function render() {
       h('div', { class: 'field' },
         h('label', {}, '避けたいもの（任意）'),
         avoidInput
+      ),
+      h('div', { class: 'field' },
+        h('label', {}, '今週すでに決まっているメニュー（任意）'),
+        fixedInput,
+        h('p', { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } }, 'AIがその曜日に自動で組み込みます')
       ),
       h('div', { class: 'footer-action' }, submitBtn)
     );

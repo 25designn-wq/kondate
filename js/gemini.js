@@ -25,9 +25,11 @@ export function buildPrompt(ctx) {
   };
   const sv = who => {
     const s = survey[who] || {};
-    return `■ ${LABEL[who]}の今週の気分: ${s.mood || '特になし'}` +
-      (s.want ? `／食べたい: ${s.want}` : '') +
-      (s.avoid ? `／避けたい: ${s.avoid}` : '');
+    let text = `■ ${LABEL[who]}の今週の気分: ${s.mood || '特になし'}`;
+    if (s.want)  text += `／食べたい: ${s.want}`;
+    if (s.avoid) text += `／避けたい: ${s.avoid}`;
+    if (s.fixed) text += `\n  ▷ 今週決まっているメニュー: ${s.fixed}`;
+    return text;
   };
 
   const rejected = tail(learning.rejected, CAP.rejected);
@@ -57,7 +59,7 @@ ${sv('wife')}
 - 過去の差し替え（左が却下→右が採用。好みのヒント）: ${changes.map(c => `${c.from}→${c.to}`).join('、') || 'なし'}
 
 # 出力ルール
-- 月曜から日曜までの7日分の夕食を提案する。
+- 月曜から日曜までの7日分の夕食を提案する。「今週決まっているメニュー」がある場合はその曜日にそのメニューを使い、他の曜日には提案しない。
 - 「二度と提案しない」料理は絶対に出さない。「頻度を下げる」料理は今週は避ける。
 - 最近採用された料理と全く同じものは7日内で繰り返さない。
 - 旬の食材を使う日は seasonal に一言（30字程度）コメントを入れる。旬でない日は seasonal を空文字に。
@@ -76,6 +78,29 @@ ${sv('wife')}
     // 合計6要素
   ]
 }`;
+}
+
+export async function generateRecipe(dishName) {
+  if (!state.geminiKey) throw new Error('NO_KEY');
+  const res = await fetch(ENDPOINT(state.geminiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `「${dishName}」のレシピを教えてください。2〜3人分の目安で。
+JSON形式のみで出力（他は何も書かない）：
+{
+  "ingredients": ["食材1 量", "食材2 量"],
+  "seasonings": ["調味料1 量", "調味料2 量"],
+  "steps": ["手順1", "手順2"]
+}` }] }],
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
+    }),
+  });
+  if (!res.ok) throw new Error(`API_${res.status}`);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  try { return JSON.parse(text); }
+  catch { throw new Error('PARSE'); }
 }
 
 export async function generateMenu(ctx) {

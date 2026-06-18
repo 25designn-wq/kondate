@@ -190,10 +190,25 @@ function showIntro(root, weekId, result, learning) {
         onclick: e => {
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = 'ドゥルルルル…';
+
+          // iOS Safari: ユーザー操作起点で AudioContext をアンロック
+          const ac = audio();
+          if (ac.state === 'suspended') ac.resume();
+
+          // スポットライト演出
+          const spotlight = document.createElement('div');
+          spotlight.className = 'spotlight-overlay';
+          document.body.append(spotlight);
+
           drumrollSound();
           const stage = root.querySelector('.meeting-center');
           stage.classList.add('drumroll-shake');
-          setTimeout(() => { confetti(40); startCards(root, weekId, result, learning); }, 1350);
+          setTimeout(() => {
+            spotlight.classList.add('out');
+            confetti(60);
+            setTimeout(() => spotlight.remove(), 400);
+            startCards(root, weekId, result, learning);
+          }, 1350);
         },
       }, '🥁 ドラムロール')
     )

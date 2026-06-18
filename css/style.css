@@ -192,3 +192,44 @@ body {
 #fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; max-width: 480px; margin: 0 auto; }
 .confetti-piece { position: absolute; top: -24px; border-radius: 2px; animation: confetti-fall linear forwards; }
 @keyframes confetti-fall { to { transform: translateY(105vh) rotate(720deg); opacity: .9; } }
+
+/* スポットライト演出 */
+.spotlight-overlay {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: radial-gradient(ellipse 170px 190px at 50% 42%, transparent 0%, rgba(0,0,0,0.88) 100%);
+  animation: spotlight-in .5s ease-out forwards;
+}
+.spotlight-overlay.out { animation: spotlight-out .4s ease-in forwards; }
+@keyframes spotlight-in  { from { opacity: 0; } to   { opacity: 1; } }
+@keyframes spotlight-out { from { opacity: 1; } to   { opacity: 0; } }
+
+/* meeting-center をスポットライトより前面に */
+.meeting-center { position: relative; z-index: 51; }
+
+/* レシピモーダル */
+.recipe-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 70;
+  display: flex; align-items: flex-end;
+  animation: recipe-modal-in .25s var(--ease);
+}
+@keyframes recipe-modal-in { from { opacity: 0; } to { opacity: 1; } }
+.recipe-box {
+  width: 100%; max-width: 480px; margin: 0 auto;
+  background: var(--surface); border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  max-height: 80dvh; overflow-y: auto;
+  animation: recipe-box-in .3s var(--ease);
+}
+@keyframes recipe-box-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.recipe-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+}
+.recipe-close {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface-2); cursor: pointer; font-size: 14px; flex-shrink: 0;
+}
+.recipe-section { margin-bottom: 20px; }
+.recipe-section-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+.recipe-list, .recipe-steps { padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.recipe-list li, .recipe-steps li { font-size: 14px; line-height: 1.65; }
+.recipe-loading { display: flex; flex-direction: column; align-items: center; padding: 24px; }

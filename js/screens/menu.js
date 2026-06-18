@@ -3,6 +3,7 @@ import { h, topbar } from '../dom.js';
 import { navigate } from '../router.js';
 import { state, LABEL, currentWeekId } from '../state.js';
 import * as fb from '../firebase.js';
+import { generateRecipe } from '../gemini.js';
 
 export function render() {
   const weekId = currentWeekId();
@@ -127,6 +128,19 @@ export function render() {
             }, 'なぎメモなし')
           );
         }
+
+        // 材料・レシピボタン
+        card.append(
+          h('button', {
+            style: {
+              marginTop: '14px', width: '100%', padding: '10px',
+              borderRadius: '10px', border: '1px solid var(--line)',
+              background: 'var(--surface-2)', fontSize: '13px',
+              fontWeight: 700, cursor: 'pointer', color: 'var(--muted)',
+            },
+            onclick: () => openRecipeModal(day.name),
+          }, '🍳 材料・レシピを見る')
+        );
       }
 
       // 編集モード
@@ -216,4 +230,54 @@ export function render() {
   })();
 
   return root;
+}
+
+async function openRecipeModal(dishName) {
+  const overlay = h('div', { class: 'recipe-modal',
+    onclick: e => { if (e.target === overlay) overlay.remove(); }
+  });
+  const loadingEl = h('div', { class: 'recipe-loading' },
+    h('div', { class: 'spinner' }),
+    h('p', { class: 'muted mt-8' }, 'レシピを取得中…')
+  );
+  const box = h('div', { class: 'recipe-box' },
+    h('div', { class: 'recipe-header' },
+      h('span', { style: { fontWeight: 900, fontSize: '17px' } }, dishName),
+      h('button', { class: 'recipe-close', onclick: () => overlay.remove() }, '✕')
+    ),
+    loadingEl
+  );
+  overlay.append(box);
+  document.body.append(overlay);
+
+  try {
+    const recipe = await generateRecipe(dishName);
+    loadingEl.remove();
+    box.append(
+      h('div', { class: 'recipe-section' },
+        h('div', { class: 'recipe-section-title' }, '🥬 材料'),
+        h('ul', { class: 'recipe-list' },
+          ...(recipe.ingredients || []).map(i => h('li', {}, i))
+        )
+      ),
+      h('div', { class: 'recipe-section' },
+        h('div', { class: 'recipe-section-title' }, '🧂 調味料'),
+        h('ul', { class: 'recipe-list' },
+          ...(recipe.seasonings || []).map(i => h('li', {}, i))
+        )
+      ),
+      h('div', { class: 'recipe-section' },
+        h('div', { class: 'recipe-section-title' }, '📋 手順'),
+        h('ol', { class: 'recipe-steps' },
+          ...(recipe.steps || []).map(s => h('li', {}, s))
+        )
+      )
+    );
+  } catch (e) {
+    loadingEl.innerHTML = '';
+    loadingEl.append(
+      h('p', { style: { color: 'var(--ng)', textAlign: 'center', padding: '8px' } },
+        e.message === 'NO_KEY' ? '⚙️ Gemini APIキーが未設定です' : 'レシピの取得に失敗しました')
+    );
+  }
 }
