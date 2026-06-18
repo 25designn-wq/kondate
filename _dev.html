@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="fx-layer"></div>
+  <!-- 開発用：localStorage を先に仕込む（モジュール読込より前に実行される） -->
+  <script>
+    const p = new URLSearchParams(location.search);
+    localStorage.setItem('kondate_me', p.get('me') || 'husband');
+    localStorage.setItem('kondate_household', p.get('hh') || 'devword');
+    if (p.get('key')) localStorage.setItem('kondate_gemini_key', p.get('key'));
+  </script>
+  <script type="module">
+    const s = new URLSearchParams(location.search).get('s') || 'home';
+    const onboarding = new URLSearchParams(location.search).get('onboarding') === '1';
+    const mod = await import(`./js/screens/${s}.js`);
+    document.getElementById('app').append(mod.render({ onboarding }));
+  </script>
+</body>
+</html>
