@@ -178,6 +178,77 @@ function confettiBurst(perSide = 26) {
   });
 }
 
+// 本物のページめくり（カール）：裏面を縦ストリップに分割し、右端から半円柱に巻き取って
+// 下の表面を出す。requestAnimationFrame で各片を円柱面に配置する。
+function peelReveal(card, done) {
+  const flipper = card.querySelector('.card-flipper');
+  const back = card.querySelector('.card-back');
+  if (!flipper || !back) { done && done(); return; }
+
+  const W = card.clientWidth;
+  const H = card.clientHeight;
+  const N = 18;
+  const stripW = W / N;
+  const R = Math.max(46, stripW * 2.4);   // 巻き取る円柱の半径
+
+  const layer = document.createElement('div');
+  layer.className = 'peel-layer';
+  const strips = [];
+  for (let i = 0; i < N; i++) {
+    const strip = document.createElement('div');
+    strip.className = 'peel-strip';
+    strip.style.left = (i * stripW) + 'px';
+    strip.style.width = (stripW + 0.6) + 'px';   // のりしろで縦の隙間を防ぐ
+    strip.style.height = H + 'px';
+    const clone = back.cloneNode(true);
+    clone.style.position = 'absolute';
+    clone.style.left = (-i * stripW) + 'px';
+    clone.style.top = '0';
+    clone.style.width = W + 'px';
+    clone.style.height = H + 'px';
+    clone.style.margin = '0';
+    clone.style.visibility = 'visible';
+    strip.appendChild(clone);
+    layer.appendChild(strip);
+    strips.push(strip);
+  }
+  back.style.visibility = 'hidden';   // 元の裏面を隠す（下の表面が見える）
+  flipper.appendChild(layer);
+
+  const dur = 1000;
+  const start = performance.now();
+  const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+  function frame(now) {
+    let p = (now - start) / dur;
+    if (p > 1) p = 1;
+    const e = easeInOut(p);
+    const curlX = W + R - e * (W + 2 * R);   // カール線を右外→左外へ
+    for (let i = 0; i < N; i++) {
+      const xc = i * stripW + stripW / 2;
+      const d = xc - curlX;
+      const s = strips[i];
+      if (d <= 0) {
+        s.style.transform = 'translateZ(0)';
+        s.style.zIndex = '1';
+        s.style.opacity = '1';
+      } else {
+        const theta = Math.min(Math.PI, d / R);
+        const cx = curlX + R * Math.sin(theta);
+        const cz = R * (1 - Math.cos(theta));
+        s.style.transform = `translate3d(${cx - xc}px,0,${cz}px) rotateY(${-theta * 180 / Math.PI}deg)`;
+        s.style.zIndex = String(100 + i);
+        s.style.opacity = theta > Math.PI * 0.78
+          ? String(Math.max(0, 1 - (theta - Math.PI * 0.78) / (Math.PI * 0.22)))
+          : '1';
+      }
+    }
+    if (p < 1) requestAnimationFrame(frame);
+    else { layer.remove(); done && done(); }
+  }
+  requestAnimationFrame(frame);
+}
+
 // 複数のライトが動き回って中央に集まるスポットライト演出（初回のみ）
 function buildSpotlightStage() {
   return h('div', { class: 'spotlight-stage' },
@@ -409,16 +480,15 @@ function startCards(root, weekId, result, learning) {
       const wait = first ? 1550 : 880;
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
-        card.classList.add('revealed');           // ここで表にめくれる
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
-        // めくれ演出（約0.8s）が終わってからスワイプ・ボタンを有効化
-        setTimeout(() => {
+        // 本物のめくり（カール）を実行し、終わってからスワイプ・ボタンを有効化
+        peelReveal(card, () => {
           const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
           attachSwipe(card, { onAccept: accept, onReject: doReject });
           acceptBtn.onclick = accept;
           rejectBtn.onclick = doReject;
           setControls(true);
-        }, 850);
+        });
       }, wait);
     };
 
