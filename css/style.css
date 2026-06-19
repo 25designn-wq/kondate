@@ -160,10 +160,12 @@ body {
 .card-front { background: var(--surface); z-index: 1; }
 .card-back  { z-index: 2; }    /* 初期は裏が上に見える */
 
-/* めくり（カール）：JS がストリップを生成し、円柱に巻き取って下の表面を出す */
-.peel-layer { position: absolute; inset: 0; z-index: 3; perspective: 1100px; pointer-events: none; }
-.peel-strip { position: absolute; top: 0; overflow: hidden; will-change: transform; }
-.peel-strip > .card-face { border: none; box-shadow: none; }
+/* めくり：JS がストリップを生成。各片は両面（表＝カバー／裏＝レシピ）で順に裏返る */
+.peel-layer { position: absolute; inset: 0; z-index: 3; perspective: 1200px; pointer-events: none; }
+.peel-strip { position: absolute; top: 0; transform-style: preserve-3d; will-change: transform; }
+.peel-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.peel-face.back { transform: rotateY(180deg); }
+.peel-face > .card-face { border: none; box-shadow: none; }
 
 /* 裏面のデザイン */
 .card-back {
@@ -220,6 +222,22 @@ body {
 .mc-ctrl.accept { background: linear-gradient(145deg, #3ddc92, #1fb673); transform: rotate(9deg); }
 .mc-ctrl.reject:active { transform: rotate(-9deg) scale(.9); }
 .mc-ctrl.accept:active { transform: rotate(9deg) scale(.9); }
+/* 採用/不採用を選んだ時の演出 */
+.mc-ctrl.accept.pop { animation: btn-pop .6s ease; }
+@keyframes btn-pop {
+  0%   { transform: rotate(9deg) scale(1);    box-shadow: var(--shadow-lg); }
+  30%  { transform: rotate(9deg) scale(1.28); box-shadow: 0 0 0 9px rgba(31,182,115,.28), var(--shadow-lg); }
+  55%  { transform: rotate(9deg) scale(.9); }
+  100% { transform: rotate(9deg) scale(1);    box-shadow: var(--shadow-lg); }
+}
+.mc-ctrl.reject.shake { animation: btn-shake .6s ease; }
+@keyframes btn-shake {
+  0%,100% { transform: rotate(-9deg) translateX(0); }
+  15%     { transform: rotate(-9deg) translateX(-7px); box-shadow: 0 0 0 9px rgba(255,77,109,.24), var(--shadow-lg); }
+  35%     { transform: rotate(-9deg) translateX(7px); }
+  55%     { transform: rotate(-9deg) translateX(-5px); }
+  75%     { transform: rotate(-9deg) translateX(5px); }
+}
 
 /* スワイプ判定バッジ */
 .swipe-badge {

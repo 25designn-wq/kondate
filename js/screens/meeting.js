@@ -178,18 +178,24 @@ function confettiBurst(perSide = 26) {
   });
 }
 
-// 本物のページめくり（カール）：裏面を縦ストリップに分割し、右端から半円柱に巻き取って
-// 下の表面を出す。requestAnimationFrame で各片を円柱面に配置する。
+// 本物のページめくり：カードを縦ストリップに分割し、各片を「表＝カバー／裏＝レシピ」の
+// 両面にして、右端から波打つように順に裏返す。めくり終わると裏（レシピ）が現れる。
 function peelReveal(card, done) {
   const flipper = card.querySelector('.card-flipper');
   const back = card.querySelector('.card-back');
-  if (!flipper || !back) { done && done(); return; }
+  const front = card.querySelector('.card-front');
+  if (!flipper || !back || !front) { done && done(); return; }
 
   const W = card.clientWidth;
   const H = card.clientHeight;
-  const N = 18;
+  const N = 16;
   const stripW = W / N;
-  const R = Math.max(46, stripW * 2.4);   // 巻き取る円柱の半径
+
+  const cloneFull = (src) => {
+    const c = src.cloneNode(true);
+    Object.assign(c.style, { position: 'absolute', top: '0', width: W + 'px', height: H + 'px', margin: '0', visibility: 'visible' });
+    return c;
+  };
 
   const layer = document.createElement('div');
   layer.className = 'peel-layer';
@@ -200,51 +206,38 @@ function peelReveal(card, done) {
     strip.style.left = (i * stripW) + 'px';
     strip.style.width = (stripW + 0.6) + 'px';   // のりしろで縦の隙間を防ぐ
     strip.style.height = H + 'px';
-    const clone = back.cloneNode(true);
-    clone.style.position = 'absolute';
-    clone.style.left = (-i * stripW) + 'px';
-    clone.style.top = '0';
-    clone.style.width = W + 'px';
-    clone.style.height = H + 'px';
-    clone.style.margin = '0';
-    clone.style.visibility = 'visible';
-    strip.appendChild(clone);
+
+    const ff = document.createElement('div'); ff.className = 'peel-face';        // 表＝カバー
+    const cover = cloneFull(back); cover.style.left = (-i * stripW) + 'px'; ff.appendChild(cover);
+
+    const bf = document.createElement('div'); bf.className = 'peel-face back';    // 裏＝レシピ
+    const recipe = cloneFull(front); recipe.style.left = (-i * stripW) + 'px'; bf.appendChild(recipe);
+
+    strip.appendChild(ff); strip.appendChild(bf);
     layer.appendChild(strip);
     strips.push(strip);
   }
-  back.style.visibility = 'hidden';   // 元の裏面を隠す（下の表面が見える）
+  back.style.visibility = 'hidden';   // 元の裏面を隠す（ストリップで描く）
   flipper.appendChild(layer);
 
-  const dur = 1000;
+  const flipDur = 620, stagger = 540, totalT = flipDur + stagger;
   const start = performance.now();
-  const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
   function frame(now) {
-    let p = (now - start) / dur;
-    if (p > 1) p = 1;
-    const e = easeInOut(p);
-    const curlX = W + R - e * (W + 2 * R);   // カール線を右外→左外へ
+    const el = now - start;
     for (let i = 0; i < N; i++) {
-      const xc = i * stripW + stripW / 2;
-      const d = xc - curlX;
-      const s = strips[i];
-      if (d <= 0) {
-        s.style.transform = 'translateZ(0)';
-        s.style.zIndex = '1';
-        s.style.opacity = '1';
-      } else {
-        const theta = Math.min(Math.PI, d / R);
-        const cx = curlX + R * Math.sin(theta);
-        const cz = R * (1 - Math.cos(theta));
-        s.style.transform = `translate3d(${cx - xc}px,0,${cz}px) rotateY(${-theta * 180 / Math.PI}deg)`;
-        s.style.zIndex = String(100 + i);
-        s.style.opacity = theta > Math.PI * 0.78
-          ? String(Math.max(0, 1 - (theta - Math.PI * 0.78) / (Math.PI * 0.22)))
-          : '1';
-      }
+      const delay = (N - 1 - i) / (N - 1) * stagger;   // 右端から順に裏返る
+      let local = (el - delay) / flipDur;
+      local = local < 0 ? 0 : local > 1 ? 1 : local;
+      const e = ease(local);
+      const angle = e * 180;
+      const lift = Math.sin(e * Math.PI) * (stripW * 1.4);   // めくり中に少し浮く
+      strips[i].style.transform = `rotateY(${angle}deg) translateZ(${lift}px)`;
+      strips[i].style.zIndex = String(100 + Math.round(Math.sin(e * Math.PI) * 100));
     }
-    if (p < 1) requestAnimationFrame(frame);
-    else { layer.remove(); done && done(); }
+    if (el < totalT) requestAnimationFrame(frame);
+    else { layer.remove(); done && done(); }   // 撤去後は下の本物の表面（レシピ）が残る
   }
   requestAnimationFrame(frame);
 }
@@ -430,9 +423,17 @@ function startCards(root, weekId, result, learning) {
     mountTop();
   }
 
+  function pulse(btn, cls) {
+    btn.classList.remove(cls);
+    void btn.offsetWidth;        // リフローでアニメをリスタート
+    btn.classList.add(cls);
+    setTimeout(() => btn.classList.remove(cls), 600);
+  }
+
   function accept() {
     const dish = session.current[session.dayIndex];
     session.accepted.push({ ...dish, weekday: WEEKDAYS[session.dayIndex] });
+    pulse(acceptBtn, 'pop');
     cheer(); confettiBurst();
     nextDay();
   }
@@ -440,6 +441,7 @@ function startCards(root, weekId, result, learning) {
   function reject(reason) {
     const dish = session.current[session.dayIndex];
     session.rejected.push({ name: dish.name, reason });
+    pulse(rejectBtn, 'shake');
     buzz();
     // 予備候補に差し替え
     if (session.altPtr < alternates.length) {
@@ -467,17 +469,18 @@ function startCards(root, weekId, result, learning) {
       revealed = true;
       unlockAudio();
 
-      // スポットライト演出は最初の1枚だけ（複数ライトが回って中央に集中）
-      const first = session.dayIndex === 0;
+      // スポットライト演出は会議で一度きり（却下でやり直しても再生しない）
+      const showStage = !session.spotlightShown;
       let stage = null;
-      if (first) {
+      if (showStage) {
+        session.spotlightShown = true;
         stage = buildSpotlightStage();
         document.body.append(stage);
       }
       card.classList.add('drumroll-shake');
-      drumrollSound(first ? 1.5 : 0.85);
+      drumrollSound(showStage ? 1.5 : 0.85);
 
-      const wait = first ? 1550 : 880;
+      const wait = showStage ? 1550 : 880;
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
