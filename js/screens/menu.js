@@ -78,13 +78,15 @@ export function render() {
       fb.setMenu(weekId, { days }).catch(() => {});
     }
 
-    // ドラッグ開始（ハンドルの pointerdown）
+    // ドラッグ開始（ハンドルの pointerdown）。移動・終了は document で拾う（タッチでも確実に動く）
     function startDrag(e, card) {
       e.preventDefault();
+      const pointerId = e.pointerId;
       card.classList.add('dragging');
-      card.setPointerCapture?.(e.pointerId);
 
       const onMove = ev => {
+        if (ev.pointerId !== pointerId) return;
+        ev.preventDefault();
         const y = ev.clientY;
         const sibs = [...listEl.querySelectorAll('.day-card:not(.dragging)')];
         let target = null;
@@ -95,16 +97,17 @@ export function render() {
         if (target) listEl.insertBefore(card, target);
         else listEl.append(card);
       };
-      const onUp = () => {
+      const onUp = ev => {
+        if (ev.pointerId !== pointerId) return;
         card.classList.remove('dragging');
-        card.removeEventListener('pointermove', onMove);
-        card.removeEventListener('pointerup', onUp);
-        card.removeEventListener('pointercancel', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
         commitReorder();
       };
-      card.addEventListener('pointermove', onMove);
-      card.addEventListener('pointerup', onUp);
-      card.addEventListener('pointercancel', onUp);
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     }
 
     // 1日分のカード

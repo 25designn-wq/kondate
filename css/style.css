@@ -155,14 +155,11 @@ body {
   position: relative; width: 100%; height: 100%; min-height: 480px;
   transform-style: preserve-3d; transform: rotateY(0deg);
 }
-/* めくれ演出：ゆっくり・中盤で膨らんで「ぐにゃーん」、最後に軽くオーバーシュート */
-.menu-card.revealed .card-flipper { animation: flip-reveal 1.05s cubic-bezier(.5,-0.2,.3,1.25) forwards; }
+/* めくれ演出：紙がぺらりと返るような滑らかなY軸回転 */
+.menu-card.revealed .card-flipper { animation: flip-reveal .8s cubic-bezier(.45,.05,.2,1) forwards; }
 @keyframes flip-reveal {
-  0%   { transform: rotateY(0deg)    scale(1)    translateZ(0); }
-  25%  { transform: rotateY(50deg)   scale(1.12) translateZ(40px); }
-  60%  { transform: rotateY(130deg)  scale(1.12) translateZ(40px); }
-  85%  { transform: rotateY(192deg)  scale(1.02); }
-  100% { transform: rotateY(180deg)  scale(1); }
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(180deg); }
 }
 .card-face {
   position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
@@ -190,20 +187,23 @@ body {
 .mc-name { font-size: 30px; font-weight: 900; line-height: 1.3; margin-top: 10px; }
 .mc-reason { font-size: 15px; color: var(--muted); margin-top: 14px; line-height: 1.6; }
 .mc-seasonal { margin-top: 18px; background: var(--accent-soft); color: #c43c22; font-size: 13px; font-weight: 600; padding: 12px 14px; border-radius: 12px; line-height: 1.5; }
-.mc-kids { margin-top: 10px; background: var(--surface-2); font-size: 13px; padding: 12px 14px; border-radius: 12px; line-height: 1.5; }
-/* 会議カードの材料名（即時表示・採否の判断用） */
+.mc-kids { margin-top: 14px; background: var(--accent-soft); color: #c43c22; font-size: 13px; padding: 12px 14px; border-radius: 12px; line-height: 1.5; }
+/* 会議カードの材料名（即時表示・採否の判断用）。枠線で囲ってなぎメモと区別 */
+.mc-ing-box { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
 .mc-ing {
-  font-size: 12.5px; color: var(--text); margin-top: 10px; line-height: 1.55;
+  font-size: 12.5px; color: var(--text); line-height: 1.55;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .mc-ing-label { font-weight: 700; color: var(--muted); margin-right: 6px; }
+/* 下部：作り方カプセルボタン＋操作ヒント */
+.mc-foot { margin-top: auto; padding-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .mc-recipe-btn {
-  margin-top: 12px; width: 100%; padding: 10px; border-radius: 10px;
-  border: 1px solid var(--line); background: var(--surface-2);
-  font-family: inherit; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 22px; border-radius: 999px;
+  border: 1px solid var(--accent); background: var(--surface); color: var(--accent);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
 }
-.mc-recipe-btn:active { transform: scale(.98); }
-.mc-hint { margin-top: auto; padding-top: 16px; font-size: 12px; text-align: center; }
+.mc-recipe-btn:active { transform: scale(.96); }
+.mc-hint { font-size: 12px; text-align: center; }
 
 /* スワイプ判定バッジ */
 .swipe-badge {
@@ -249,19 +249,25 @@ body {
   100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; }
 }
 
-/* スポットライト演出（円が徐々に狭まってギューッと収束） */
-.spotlight-overlay { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
-.spotlight-overlay::before {
-  content: ''; position: absolute; top: 48%; left: 50%;
-  width: 760px; height: 820px; border-radius: 50%;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,0.86);
-  animation: spot-narrow .9s ease-in forwards;
+/* スポットライト演出（初回のみ）：複数のライトが動き回って中央ステージに集中 */
+.spotlight-stage {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden;
+  background: rgba(0,0,0,0.9);
 }
-@keyframes spot-narrow {
-  from { width: 760px; height: 820px; transform: translate(-50%,-50%); opacity: .35; }
-  to   { width: 300px; height: 360px; transform: translate(-50%,-50%); opacity: 1; }
+.spotlight-stage.out { transition: opacity .45s ease-in; opacity: 0; }
+.spotlight-stage .beam {
+  position: absolute; top: 42%; left: 50%; width: 260px; height: 260px; margin: -130px 0 0 -130px;
+  border-radius: 50%; mix-blend-mode: screen; filter: blur(10px);
+  background: radial-gradient(circle, rgba(255,255,255,.95), rgba(255,255,255,.25) 45%, rgba(255,255,255,0) 70%);
 }
-.spotlight-overlay.out { transition: opacity .4s ease-in; opacity: 0; }
+.beam.b2 { background: radial-gradient(circle, rgba(255,214,140,.9), rgba(255,214,140,0) 70%); }
+.beam.b3 { background: radial-gradient(circle, rgba(150,200,255,.9), rgba(150,200,255,0) 70%); }
+.beam.b1 { animation: beam1 1.5s ease-in-out forwards; }
+.beam.b2 { animation: beam2 1.5s ease-in-out forwards; }
+.beam.b3 { animation: beam3 1.5s ease-in-out forwards; }
+@keyframes beam1 { 0%{transform:translate(-55vw,-22vh) scale(.7)} 35%{transform:translate(38vw,26vh) scale(1)} 70%{transform:translate(-26vw,16vh) scale(.9)} 100%{transform:translate(0,0) scale(1.15)} }
+@keyframes beam2 { 0%{transform:translate(52vw,-26vh) scale(.6)} 40%{transform:translate(-40vw,20vh) scale(1)} 75%{transform:translate(28vw,-14vh) scale(.9)} 100%{transform:translate(0,0) scale(1.15)} }
+@keyframes beam3 { 0%{transform:translate(0,42vh) scale(.6)} 45%{transform:translate(34vw,-28vh) scale(1)} 80%{transform:translate(-34vw,-8vh) scale(.9)} 100%{transform:translate(0,0) scale(1.15)} }
 
 /* meeting-center をスポットライトより前面に */
 .meeting-center { position: relative; z-index: 51; }

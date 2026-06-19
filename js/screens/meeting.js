@@ -150,7 +150,7 @@ function confetti(amount = 80) {
   }
 }
 
-// 左右下スミから打ち上がる紙吹雪（パラパラ）
+// 左右下スミから中央（ステージ）に向かって舞い上がる紙吹雪
 function confettiBurst(perSide = 26) {
   const layer = document.getElementById('fx-layer');
   if (!layer) return;
@@ -159,23 +159,32 @@ function confettiBurst(perSide = 26) {
     for (let i = 0; i < perSide; i++) {
       const p = document.createElement('div');
       p.className = 'confetti-pop';
-      // 打ち上げの軌道をランダム化（CSS変数で渡す）
-      const up = 220 + Math.random() * 320;       // 上昇量(px)
-      const spread = (40 + Math.random() * 220) * side;  // 横の広がり
-      p.style.setProperty('--dx', spread + 'px');
+      // 中央へ向かう＝左下は右へ、右下は左へ。上にも舞い上がる。
+      const inward = (180 + Math.random() * 220) * -side;  // side=-1(左)→+(右へ)、side=+1(右)→-(左へ)
+      const up = 180 + Math.random() * 180;
+      p.style.setProperty('--dx', inward + 'px');
       p.style.setProperty('--peak', -up + 'px');
-      p.style.setProperty('--dy', (-up + 60 + Math.random() * 120) + 'px'); // 少し落ちて止まる
+      p.style.setProperty('--dy', (-up + 50 + Math.random() * 90) + 'px'); // ピークから少し落ちて止まる
       p.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
-      p.style.left = side < 0 ? '6vw' : '94vw';
-      p.style.bottom = '4vh'; p.style.top = 'auto';
+      p.style.left = side < 0 ? '8vw' : '92vw';
+      p.style.bottom = '6vh'; p.style.top = 'auto';
       p.style.background = colors[(Math.random() * colors.length) | 0];
-      p.style.animationDuration = 1.3 + Math.random() * 0.9 + 's';
+      p.style.animationDuration = 1.4 + Math.random() * 0.9 + 's';
       p.style.animationDelay = Math.random() * 0.25 + 's';
       p.style.width = p.style.height = 6 + Math.random() * 7 + 'px';
       layer.append(p);
       setTimeout(() => p.remove(), 2600);
     }
   });
+}
+
+// 複数のライトが動き回って中央に集まるスポットライト演出（初回のみ）
+function buildSpotlightStage() {
+  return h('div', { class: 'spotlight-stage' },
+    h('div', { class: 'beam b1' }),
+    h('div', { class: 'beam b2' }),
+    h('div', { class: 'beam b3' })
+  );
 }
 
 /* ===================== 画面本体 ===================== */
@@ -373,25 +382,29 @@ function startCards(root, weekId, result, learning) {
       revealed = true;
       unlockAudio();
 
-      // カードの裏面にスポットライトを当てる
-      const spotlight = h('div', { class: 'spotlight-overlay' });
-      document.body.append(spotlight);
+      // スポットライト演出は最初の1枚だけ（複数ライトが回って中央に集中）
+      const first = session.dayIndex === 0;
+      let stage = null;
+      if (first) {
+        stage = buildSpotlightStage();
+        document.body.append(stage);
+      }
       card.classList.add('drumroll-shake');
-      drumrollSound(0.85);
+      drumrollSound(first ? 1.5 : 0.85);
 
+      const wait = first ? 1550 : 880;
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
-        card.classList.add('revealed');           // ここで表にぐにゃーんと回転
-        spotlight.classList.add('out');
-        setTimeout(() => spotlight.remove(), 400);
-        // めくれ演出（約1.0s）が終わってからスワイプを有効化
+        card.classList.add('revealed');           // ここで表にめくれる
+        if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
+        // めくれ演出（約0.8s）が終わってからスワイプを有効化
         setTimeout(() => {
           attachSwipe(card, {
             onAccept: accept,
             onReject: () => openReasonOverlay(card, reject),   // 却下は必ず理由を選ぶ
           });
-        }, 1000);
-      }, 880);
+        }, 850);
+      }, wait);
     };
 
     // 裏面タップ（=発表）で表に
@@ -411,19 +424,23 @@ function dishCard(weekday, dish, idx) {
     h('div', { class: 'mc-name' }, dish.name),
     dish.reason && h('div', { class: 'mc-reason' }, dish.reason),
     dish.seasonal && h('div', { class: 'mc-seasonal' }, '🍂 ' + dish.seasonal),
-    dish.kidsNote && h('div', { class: 'mc-kids' }, '👶 なぎ：' + dish.kidsNote),
     // 材料名だけ即時表示（採否の判断用。APIは呼ばない）
-    ingredients.length > 0 && h('div', { class: 'mc-ing' },
-      h('span', { class: 'mc-ing-label' }, '🥬 材料'), ingredients.map(nameOnly).join('、')),
-    seasonings.length > 0 && h('div', { class: 'mc-ing' },
-      h('span', { class: 'mc-ing-label' }, '🧂 調味料'), seasonings.map(nameOnly).join('、')),
-    // 分量・作り方はタップ時に取得
-    h('button', {
-      class: 'mc-recipe-btn',
-      onclick: e => { e.stopPropagation(); openRecipeModal(dish.name); },
-      onpointerdown: e => e.stopPropagation(),     // スワイプ判定に食われないように
-    }, '🍳 作り方を見る'),
-    h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下（理由を選ぶ）')
+    (ingredients.length > 0 || seasonings.length > 0) && h('div', { class: 'mc-ing-box' },
+      ingredients.length > 0 && h('div', { class: 'mc-ing' },
+        h('span', { class: 'mc-ing-label' }, '🥬 材料'), ingredients.map(nameOnly).join('、')),
+      seasonings.length > 0 && h('div', { class: 'mc-ing', style: { marginTop: '7px' } },
+        h('span', { class: 'mc-ing-label' }, '🧂 調味料'), seasonings.map(nameOnly).join('、'))
+    ),
+    dish.kidsNote && h('div', { class: 'mc-kids' }, '👶 なぎ：' + dish.kidsNote),
+    // 下部：作り方ボタン（カプセル）＋操作ヒント
+    h('div', { class: 'mc-foot' },
+      h('button', {
+        class: 'mc-recipe-btn',
+        onclick: e => { e.stopPropagation(); openRecipeModal(dish.name); },
+        onpointerdown: e => e.stopPropagation(),     // スワイプ判定に食われないように
+      }, '🍳 作り方'),
+      h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下（理由を選ぶ）')
+    )
   );
   // 裏面：めくる前のデザイン
   const back = h('div', { class: 'card-face card-back' },
