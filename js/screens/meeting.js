@@ -302,12 +302,27 @@ function startCards(root, weekId, result, learning) {
   const progress = h('div', { class: 'meeting-progress' });
   const stack = h('div', { class: 'card-stack' });
   const toast = h('div', { class: 'toast' });
+
+  // カード外の操作ボタン（スワイプと同じ動作。発表後に有効化）
+  const rejectBtn = h('button', { class: 'mc-ctrl reject', disabled: true },
+    h('span', { class: 'ctrl-emoji' }, '👎'),
+    h('span', { class: 'ctrl-label' }, '却下'),
+    h('span', { class: 'ctrl-arrow' }, '←')
+  );
+  const acceptBtn = h('button', { class: 'mc-ctrl accept', disabled: true },
+    h('span', { class: 'ctrl-arrow' }, '→'),
+    h('span', { class: 'ctrl-label' }, '採用'),
+    h('span', { class: 'ctrl-emoji' }, '👍')
+  );
+  const controls = h('div', { class: 'meeting-controls' }, rejectBtn, acceptBtn);
+  function setControls(on) { acceptBtn.disabled = rejectBtn.disabled = !on; }
+
   root.append(
     h('div', { class: 'meeting-head' },
       h('div', { class: 'font-display', style: { fontSize: '12px', letterSpacing: '.2em', color: 'var(--muted)' } }, 'KONDATE MEETING'),
       progress
     ),
-    stack, toast
+    stack, toast, controls
   );
 
   function showToast(msg) {
@@ -371,6 +386,7 @@ function startCards(root, weekId, result, learning) {
   // 現在の曜日のカードを積む（裏向きで出す → タップで発表 → 表に回転）
   function mountTop() {
     stack.innerHTML = '';
+    setControls(false);   // 発表前は操作ボタンを無効化
     const i = session.dayIndex;
     const dish = session.current[i];
     const card = dishCard(WEEKDAYS[i], dish, i);
@@ -397,12 +413,13 @@ function startCards(root, weekId, result, learning) {
         card.classList.remove('drumroll-shake');
         card.classList.add('revealed');           // ここで表にめくれる
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
-        // めくれ演出（約0.8s）が終わってからスワイプを有効化
+        // めくれ演出（約0.8s）が終わってからスワイプ・ボタンを有効化
         setTimeout(() => {
-          attachSwipe(card, {
-            onAccept: accept,
-            onReject: () => openReasonOverlay(card, reject),   // 却下は必ず理由を選ぶ
-          });
+          const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
+          attachSwipe(card, { onAccept: accept, onReject: doReject });
+          acceptBtn.onclick = accept;
+          rejectBtn.onclick = doReject;
+          setControls(true);
         }, 850);
       }, wait);
     };
@@ -432,14 +449,13 @@ function dishCard(weekday, dish, idx) {
         h('span', { class: 'mc-ing-label' }, '🧂 調味料'), seasonings.map(nameOnly).join('、'))
     ),
     dish.kidsNote && h('div', { class: 'mc-kids' }, '👶 なぎ：' + dish.kidsNote),
-    // 下部：作り方ボタン（カプセル）＋操作ヒント
+    // 下部：作り方ボタン（カプセル）
     h('div', { class: 'mc-foot' },
       h('button', {
         class: 'mc-recipe-btn',
         onclick: e => { e.stopPropagation(); openRecipeModal(dish.name); },
         onpointerdown: e => e.stopPropagation(),     // スワイプ判定に食われないように
-      }, '🍳 作り方'),
-      h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下（理由を選ぶ）')
+      }, '🍳 作り方')
     )
   );
   // 裏面：めくる前のデザイン
