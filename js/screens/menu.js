@@ -1,9 +1,13 @@
-// 献立一覧画面：確定済みの今週の献立を曜日ごとに表示。なぎメモのインライン編集も可能。
+// 献立一覧画面：確定済みの今週の献立を曜日ごとに表示。
+// なぎメモのインライン編集、材料名の表示、ドラッグでの並び替えに対応。
 import { h, topbar } from '../dom.js';
 import { navigate } from '../router.js';
-import { state, LABEL, currentWeekId } from '../state.js';
+import { LABEL, currentWeekId, WEEKDAYS } from '../state.js';
 import * as fb from '../firebase.js';
-import { generateRecipe } from '../gemini.js';
+import { openRecipeModal } from '../recipe.js';
+
+// 材料文字列から名前だけ取り出す（「鶏もも肉 300g」→「鶏もも肉」）
+const nameOnly = s => String(s).split(/\s+/)[0];
 
 export function render() {
   const weekId = currentWeekId();
@@ -17,8 +21,6 @@ export function render() {
 
   (async () => {
     const menu = await fb.getMenu(weekId);
-
-    // 読み込み中表示を除去（topbar は再生成しない）
     loading.remove();
 
     // 献立なし
@@ -40,55 +42,95 @@ export function render() {
     // 確定者の表示
     if (menu.confirmedBy) {
       root.append(
-        h('p', {
-          class: 'muted',
-          style: { fontSize: '12px', marginBottom: '16px', textAlign: 'right' },
-        }, `（${LABEL[menu.confirmedBy]}が確定）`)
+        h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '6px', textAlign: 'right' } },
+          `（${LABEL[menu.confirmedBy]}が確定）`)
       );
     }
+    root.append(
+      h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '14px' } },
+        '≡ をドラッグすると曜日を入れ替えできます')
+    );
 
-    // days 配列をコピーして保持（インライン編集で更新する）
+    // days 配列をコピーして保持（編集・並び替えで更新する）
     const days = menu.days.map(d => ({ ...d }));
 
-    // 各日のカードを描画する関数（再描画のために関数化）
+    // カードを並べるコンテナ（並び替えはこの中で行う）
+    const listEl = h('div', { class: 'menu-list' });
+    root.append(listEl);
+    root.append(
+      h('div', { class: 'footer-action' },
+        h('button', { class: 'btn ghost', onclick: () => navigate('meeting') }, '献立を作り直す（会議）')
+      )
+    );
+
+    // days からカードを再構築する
     function buildDayCards() {
-      // 既存カードをすべて除去してから再描画
-      [...root.querySelectorAll('.day-card')].forEach(el => el.remove());
-      // フッターも除去
-      const footer = root.querySelector('.footer-action');
-      if (footer) footer.remove();
-
-      days.forEach((day, idx) => {
-        const card = buildDayCard(day, idx);
-        root.append(card);
-      });
-
-      root.append(
-        h('div', { class: 'footer-action' },
-          h('button', { class: 'btn ghost', onclick: () => navigate('meeting') }, '献立を作り直す（会議）')
-        )
-      );
+      listEl.innerHTML = '';
+      days.forEach(day => listEl.append(buildDayCard(day)));
     }
 
-    // 1日分のカードを構築する関数
-    function buildDayCard(day, idx) {
-      const card = h('div', { class: 'card day-card', style: { marginBottom: '14px' } });
+    // 並び替え確定：DOMの順序から days を作り直し、曜日を位置で振り直して保存
+    function commitReorder() {
+      const order = [...listEl.querySelectorAll('.day-card')].map(c => c._day);
+      order.forEach((d, i) => { d.weekday = WEEKDAYS[i]; });
+      days.length = 0; days.push(...order);
+      buildDayCards();
+      fb.setMenu(weekId, { days }).catch(() => {});
+    }
 
-      // 表示モード
+    // ドラッグ開始（ハンドルの pointerdown）
+    function startDrag(e, card) {
+      e.preventDefault();
+      card.classList.add('dragging');
+      card.setPointerCapture?.(e.pointerId);
+
+      const onMove = ev => {
+        const y = ev.clientY;
+        const sibs = [...listEl.querySelectorAll('.day-card:not(.dragging)')];
+        let target = null;
+        for (const sib of sibs) {
+          const r = sib.getBoundingClientRect();
+          if (y < r.top + r.height / 2) { target = sib; break; }
+        }
+        if (target) listEl.insertBefore(card, target);
+        else listEl.append(card);
+      };
+      const onUp = () => {
+        card.classList.remove('dragging');
+        card.removeEventListener('pointermove', onMove);
+        card.removeEventListener('pointerup', onUp);
+        card.removeEventListener('pointercancel', onUp);
+        commitReorder();
+      };
+      card.addEventListener('pointermove', onMove);
+      card.addEventListener('pointerup', onUp);
+      card.addEventListener('pointercancel', onUp);
+    }
+
+    // 1日分のカード
+    function buildDayCard(day) {
+      const card = h('div', { class: 'card day-card', style: { marginBottom: '14px' } });
+      card._day = day;   // 並び替えのために紐付け
+
+      const dayBadge = () => h('span', {
+        style: {
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: '32px', height: '32px', borderRadius: '8px',
+          background: 'var(--accent)', color: '#fff',
+          fontSize: '14px', fontWeight: 900, flexShrink: '0',
+        },
+      }, day.weekday);
+
       function renderView() {
         card.innerHTML = '';
 
-        // ヘッダ行: 曜日バッジ + 料理名 + 編集ボタン
+        const handle = h('div', { class: 'drag-handle', title: 'ドラッグで並び替え' }, '≡');
+        handle.addEventListener('pointerdown', e => startDrag(e, card));
+
         const nameRow = h('div', { class: 'row', style: { alignItems: 'flex-start', gap: '10px' } },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flex: '1' } },
-            h('span', {
-              style: {
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '8px',
-                background: 'var(--accent)', color: '#fff',
-                fontSize: '14px', fontWeight: 900, flexShrink: '0',
-              },
-            }, day.weekday),
+            handle,
+            dayBadge(),
             h('span', { style: { fontSize: '20px', fontWeight: 800, lineHeight: 1.3 } }, day.name)
           ),
           h('button', {
@@ -102,17 +144,12 @@ export function render() {
         );
         card.append(nameRow);
 
-        // 理由
         if (day.reason) {
           card.append(h('p', { class: 'muted', style: { fontSize: '13px', marginTop: '8px', lineHeight: 1.6 } }, day.reason));
         }
-
-        // 旬ピル
         if (day.seasonal) {
           card.append(h('div', { class: 'mc-seasonal', style: { marginTop: '10px' } }, '🍂 ' + day.seasonal));
         }
-
-        // なぎメモ
         if (day.kidsNote) {
           card.append(
             h('div', { class: 'mc-kids', style: { marginTop: '10px' } },
@@ -121,29 +158,35 @@ export function render() {
             )
           );
         } else {
-          card.append(
-            h('p', {
-              class: 'muted',
-              style: { fontSize: '12px', marginTop: '10px' },
-            }, 'なぎメモなし')
-          );
+          card.append(h('p', { class: 'muted', style: { fontSize: '12px', marginTop: '10px' } }, 'なぎメモなし'));
         }
 
-        // 材料・レシピボタン
+        // 材料名（あれば）
+        const ing = Array.isArray(day.ingredients) ? day.ingredients : [];
+        const sea = Array.isArray(day.seasonings) ? day.seasonings : [];
+        if (ing.length) {
+          card.append(h('div', { class: 'mc-ing', style: { color: 'var(--text)' } },
+            h('span', { class: 'mc-ing-label' }, '🥬 材料'), ing.map(nameOnly).join('、')));
+        }
+        if (sea.length) {
+          card.append(h('div', { class: 'mc-ing', style: { color: 'var(--text)' } },
+            h('span', { class: 'mc-ing-label' }, '🧂 調味料'), sea.map(nameOnly).join('、')));
+        }
+
+        // 材料・レシピ（分量・作り方）モーダル
         card.append(
           h('button', {
             style: {
               marginTop: '14px', width: '100%', padding: '10px',
               borderRadius: '10px', border: '1px solid var(--line)',
               background: 'var(--surface-2)', fontSize: '13px',
-              fontWeight: 700, cursor: 'pointer', color: 'var(--muted)',
+              fontWeight: 700, cursor: 'pointer', color: 'var(--accent)',
             },
             onclick: () => openRecipeModal(day.name),
-          }, '🍳 材料・レシピを見る')
+          }, '🍳 材料・作り方を見る')
         );
       }
 
-      // 編集モード
       function renderEdit() {
         card.innerHTML = '';
 
@@ -175,12 +218,10 @@ export function render() {
 
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中…';
-            days[idx].name = newName;
-            days[idx].kidsNote = kidsInput.value.trim();
+            day.name = newName;
+            day.kidsNote = kidsInput.value.trim();
             try {
               await fb.setMenu(weekId, { days });
-              day.name = days[idx].name;
-              day.kidsNote = days[idx].kidsNote;
               renderView();
             } catch (e) {
               saveBtn.disabled = false;
@@ -198,25 +239,11 @@ export function render() {
 
         card.append(
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' } },
-            h('span', {
-              style: {
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '8px',
-                background: 'var(--accent)', color: '#fff',
-                fontSize: '14px', fontWeight: 900, flexShrink: '0',
-              },
-            }, day.weekday),
+            dayBadge(),
             h('span', { style: { fontSize: '14px', fontWeight: 700 } }, '編集')
           ),
-          h('div', { class: 'field' },
-            h('label', {}, '料理名'),
-            nameInput,
-            errMsg
-          ),
-          h('div', { class: 'field' },
-            h('label', {}, 'なぎメモ（任意）'),
-            kidsInput
-          ),
+          h('div', { class: 'field' }, h('label', {}, '料理名'), nameInput, errMsg),
+          h('div', { class: 'field' }, h('label', {}, 'なぎメモ（任意）'), kidsInput),
           saveBtn,
           cancelBtn
         );
@@ -230,54 +257,4 @@ export function render() {
   })();
 
   return root;
-}
-
-async function openRecipeModal(dishName) {
-  const overlay = h('div', { class: 'recipe-modal',
-    onclick: e => { if (e.target === overlay) overlay.remove(); }
-  });
-  const loadingEl = h('div', { class: 'recipe-loading' },
-    h('div', { class: 'spinner' }),
-    h('p', { class: 'muted mt-8' }, 'レシピを取得中…')
-  );
-  const box = h('div', { class: 'recipe-box' },
-    h('div', { class: 'recipe-header' },
-      h('span', { style: { fontWeight: 900, fontSize: '17px' } }, dishName),
-      h('button', { class: 'recipe-close', onclick: () => overlay.remove() }, '✕')
-    ),
-    loadingEl
-  );
-  overlay.append(box);
-  document.body.append(overlay);
-
-  try {
-    const recipe = await generateRecipe(dishName);
-    loadingEl.remove();
-    box.append(
-      h('div', { class: 'recipe-section' },
-        h('div', { class: 'recipe-section-title' }, '🥬 材料'),
-        h('ul', { class: 'recipe-list' },
-          ...(recipe.ingredients || []).map(i => h('li', {}, i))
-        )
-      ),
-      h('div', { class: 'recipe-section' },
-        h('div', { class: 'recipe-section-title' }, '🧂 調味料'),
-        h('ul', { class: 'recipe-list' },
-          ...(recipe.seasonings || []).map(i => h('li', {}, i))
-        )
-      ),
-      h('div', { class: 'recipe-section' },
-        h('div', { class: 'recipe-section-title' }, '📋 手順'),
-        h('ol', { class: 'recipe-steps' },
-          ...(recipe.steps || []).map(s => h('li', {}, s))
-        )
-      )
-    );
-  } catch (e) {
-    loadingEl.innerHTML = '';
-    loadingEl.append(
-      h('p', { style: { color: 'var(--ng)', textAlign: 'center', padding: '8px' } },
-        e.message === 'NO_KEY' ? '⚙️ Gemini APIキーが未設定です' : 'レシピの取得に失敗しました')
-    );
-  }
 }

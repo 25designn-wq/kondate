@@ -7,25 +7,42 @@ import { navigate } from '../router.js';
 import { state, currentWeekId, WEEKDAYS, todayISO, LABEL } from '../state.js';
 import * as fb from '../firebase.js';
 import { generateMenu } from '../gemini.js';
+import { openRecipeModal } from '../recipe.js';
+
+// 材料文字列から名前だけ取り出す（「鶏もも肉 300g」→「鶏もも肉」）
+const nameOnly = s => String(s).split(/\s+/)[0];
 
 // Gemini未設定でもUIを試せるデモデータ
 const DEMO = {
   days: [
-    { weekday: '月', name: '鶏のはちみつ照り焼き', reason: '平日でも手早く満足感', seasonal: '', kidsNote: 'なぎは味付け前に取り分け' },
-    { weekday: '火', name: '鮭ときのこのホイル焼き', reason: 'きのこが香る季節', seasonal: '秋はきのこが旨みたっぷりで旬', kidsNote: '' },
-    { weekday: '水', name: '豚バラ大根の煮物', reason: '大根が安くて甘い時期', seasonal: '冬大根は煮るととろける', kidsNote: '' },
-    { weekday: '木', name: '野菜たっぷり塩焼きそば', reason: '冷蔵庫の整理にも◎', seasonal: '', kidsNote: '' },
-    { weekday: '金', name: '金曜はおうち餃子', reason: '週末前のお楽しみ', seasonal: '', kidsNote: 'なぎ用はにら少なめで' },
-    { weekday: '土', name: 'ブリの照り焼き', reason: '脂がのって美味しい', seasonal: '寒ブリは冬が最高に旨い', kidsNote: '' },
-    { weekday: '日', name: 'おでん', reason: '寒い日にほっとする', seasonal: '', kidsNote: '' },
+    { weekday: '月', name: '鶏のはちみつ照り焼き', reason: '平日でも手早く満足感', seasonal: '', kidsNote: 'なぎは味付け前に取り分け',
+      ingredients: ['鶏もも肉 300g', '玉ねぎ 1個', 'いんげん 6本'], seasonings: ['はちみつ 大さじ1', '醤油 大さじ2', 'みりん 大さじ1'] },
+    { weekday: '火', name: '鮭ときのこのホイル焼き', reason: 'きのこが香る季節', seasonal: '秋はきのこが旨みたっぷりで旬', kidsNote: '',
+      ingredients: ['生鮭 2切れ', 'しめじ 1袋', 'えのき 1袋', '玉ねぎ 1/2個'], seasonings: ['バター 10g', '醤油 少々', '塩こしょう 適量'] },
+    { weekday: '水', name: '豚バラ大根の煮物', reason: '大根が安くて甘い時期', seasonal: '冬大根は煮るととろける', kidsNote: '',
+      ingredients: ['豚バラ肉 200g', '大根 1/3本', '生姜 1片'], seasonings: ['醤油 大さじ3', '砂糖 大さじ1', 'みりん 大さじ2'] },
+    { weekday: '木', name: '野菜たっぷり塩焼きそば', reason: '冷蔵庫の整理にも◎', seasonal: '', kidsNote: '',
+      ingredients: ['焼きそば麺 2玉', 'キャベツ 1/4個', '人参 1/2本', '豚こま 100g'], seasonings: ['鶏ガラスープの素 小さじ2', '塩こしょう 適量', 'ごま油 大さじ1'] },
+    { weekday: '金', name: '金曜はおうち餃子', reason: '週末前のお楽しみ', seasonal: '', kidsNote: 'なぎ用はにら少なめで',
+      ingredients: ['豚ひき肉 200g', 'キャベツ 1/4個', 'にら 1/2束', '餃子の皮 24枚'], seasonings: ['醤油 小さじ2', 'ごま油 小さじ2', '生姜 1片'] },
+    { weekday: '土', name: 'ブリの照り焼き', reason: '脂がのって美味しい', seasonal: '寒ブリは冬が最高に旨い', kidsNote: '',
+      ingredients: ['ブリ 2切れ', '長ねぎ 1本'], seasonings: ['醤油 大さじ2', 'みりん 大さじ2', '酒 大さじ1', '砂糖 小さじ1'] },
+    { weekday: '日', name: 'おでん', reason: '寒い日にほっとする', seasonal: '', kidsNote: '',
+      ingredients: ['大根 1/2本', '卵 4個', 'こんにゃく 1枚', 'ちくわ 4本', 'がんも 4個'], seasonings: ['だしの素 大さじ1', '醤油 大さじ2', '塩 少々'] },
   ],
   alternates: [
-    { weekday: '', name: '麻婆豆腐', reason: 'ご飯がすすむ定番', seasonal: '', kidsNote: 'なぎ用は辛さ抜き' },
-    { weekday: '', name: 'カレーライス', reason: 'みんな大好き', seasonal: '', kidsNote: '' },
-    { weekday: '', name: 'ぶり大根', reason: '旬のぶりで', seasonal: 'ぶりは冬が旬', kidsNote: '' },
-    { weekday: '', name: 'オムライス', reason: '休日のお楽しみ', seasonal: '', kidsNote: '' },
-    { weekday: '', name: '鶏団子鍋', reason: '体が温まる', seasonal: '', kidsNote: '' },
-    { weekday: '', name: 'ナポリタン', reason: '懐かしの味', seasonal: '', kidsNote: '' },
+    { weekday: '', name: '麻婆豆腐', reason: 'ご飯がすすむ定番', seasonal: '', kidsNote: 'なぎ用は辛さ抜き',
+      ingredients: ['豆腐 1丁', '豚ひき肉 150g', '長ねぎ 1/2本'], seasonings: ['豆板醤 小さじ1', '味噌 大さじ1', '醤油 大さじ1'] },
+    { weekday: '', name: 'カレーライス', reason: 'みんな大好き', seasonal: '', kidsNote: '',
+      ingredients: ['豚こま 200g', 'じゃがいも 2個', '人参 1本', '玉ねぎ 1個'], seasonings: ['カレールー 4皿分'] },
+    { weekday: '', name: 'ぶり大根', reason: '旬のぶりで', seasonal: 'ぶりは冬が旬', kidsNote: '',
+      ingredients: ['ブリのあら 300g', '大根 1/3本'], seasonings: ['醤油 大さじ3', '砂糖 大さじ1', '酒 大さじ2'] },
+    { weekday: '', name: 'オムライス', reason: '休日のお楽しみ', seasonal: '', kidsNote: '',
+      ingredients: ['ご飯 2杯', '卵 4個', '玉ねぎ 1/2個', '鶏もも肉 100g'], seasonings: ['ケチャップ 大さじ4', '塩こしょう 適量'] },
+    { weekday: '', name: '鶏団子鍋', reason: '体が温まる', seasonal: '', kidsNote: '',
+      ingredients: ['鶏ひき肉 250g', '白菜 1/4個', '長ねぎ 1本', '豆腐 1丁'], seasonings: ['だしの素 大さじ1', '醤油 大さじ2'] },
+    { weekday: '', name: 'ナポリタン', reason: '懐かしの味', seasonal: '', kidsNote: '',
+      ingredients: ['スパゲティ 200g', 'ウインナー 4本', 'ピーマン 2個', '玉ねぎ 1/2個'], seasonings: ['ケチャップ 大さじ5', 'バター 10g'] },
   ],
 };
 
@@ -50,20 +67,6 @@ function unlockAudio() {
     src.buffer = buf; src.connect(ac.destination); src.start(0);
   } catch {}
 }
-function clap() {
-  try {
-    const ac = audio();
-    for (let i = 0; i < 3; i++) {
-      const t = ac.currentTime + i * 0.09;
-      const buf = ac.createBuffer(1, ac.sampleRate * 0.05, ac.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let j = 0; j < data.length; j++) data[j] = (Math.random() * 2 - 1) * (1 - j / data.length);
-      const src = ac.createBufferSource(); src.buffer = buf;
-      const g = ac.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-      src.connect(g).connect(ac.destination); src.start(t);
-    }
-  } catch {}
-}
 function buzz() {
   try {
     const ac = audio();
@@ -76,6 +79,37 @@ function buzz() {
     });
   } catch {}
 }
+// 歓声「わー！」＋拍手「パチパチ」
+function cheer() {
+  try {
+    const ac = audio();
+    // わー！＝バンドパスしたノイズをスウェル
+    const dur = 1.1;
+    const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let j = 0; j < data.length; j++) data[j] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.7;
+    const g = ac.createGain();
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.32, t + 0.18);   // ぐわっと盛り上がる
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bp).connect(g).connect(ac.destination); src.start();
+    // パチパチ＝細かい拍手を連発
+    for (let i = 0; i < 14; i++) {
+      const ct = t + 0.05 + Math.random() * 0.9;
+      const cb = ac.createBuffer(1, ac.sampleRate * 0.04, ac.sampleRate);
+      const cd = cb.getChannelData(0);
+      for (let j = 0; j < cd.length; j++) cd[j] = (Math.random() * 2 - 1) * (1 - j / cd.length);
+      const cs = ac.createBufferSource(); cs.buffer = cb;
+      const cg = ac.createGain(); cg.gain.setValueAtTime(0.3, ct); cg.gain.exponentialRampToValueAtTime(0.01, ct + 0.04);
+      cs.connect(cg).connect(ac.destination); cs.start(ct);
+    }
+  } catch {}
+}
+
 function drumrollSound(dur = 1.3) {
   try {
     const ac = audio();
@@ -114,6 +148,34 @@ function confetti(amount = 80) {
     layer.append(p);
     setTimeout(() => p.remove(), 2600);
   }
+}
+
+// 左右下スミから打ち上がる紙吹雪（パラパラ）
+function confettiBurst(perSide = 26) {
+  const layer = document.getElementById('fx-layer');
+  if (!layer) return;
+  const colors = ['#ff6b4a', '#ffd166', '#4ade80', '#5aa9ff', '#c77dff', '#fff'];
+  [-1, 1].forEach(side => {                      // -1=左下、+1=右下
+    for (let i = 0; i < perSide; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-pop';
+      // 打ち上げの軌道をランダム化（CSS変数で渡す）
+      const up = 220 + Math.random() * 320;       // 上昇量(px)
+      const spread = (40 + Math.random() * 220) * side;  // 横の広がり
+      p.style.setProperty('--dx', spread + 'px');
+      p.style.setProperty('--peak', -up + 'px');
+      p.style.setProperty('--dy', (-up + 60 + Math.random() * 120) + 'px'); // 少し落ちて止まる
+      p.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+      p.style.left = side < 0 ? '6vw' : '94vw';
+      p.style.bottom = '4vh'; p.style.top = 'auto';
+      p.style.background = colors[(Math.random() * colors.length) | 0];
+      p.style.animationDuration = 1.3 + Math.random() * 0.9 + 's';
+      p.style.animationDelay = Math.random() * 0.25 + 's';
+      p.style.width = p.style.height = 6 + Math.random() * 7 + 'px';
+      layer.append(p);
+      setTimeout(() => p.remove(), 2600);
+    }
+  });
 }
 
 /* ===================== 画面本体 ===================== */
@@ -264,7 +326,7 @@ function startCards(root, weekId, result, learning) {
           h('button', { class: 'btn primary mt-32', style: { maxWidth: '240px' }, onclick: () => navigate('menu') }, '献立を見る')
         )
       );
-      confetti(140);
+      cheer(); confettiBurst(40); confetti(80);
     });
   }
 
@@ -278,7 +340,7 @@ function startCards(root, weekId, result, learning) {
   function accept() {
     const dish = session.current[session.dayIndex];
     session.accepted.push({ ...dish, weekday: WEEKDAYS[session.dayIndex] });
-    clap(); confetti(60);
+    cheer(); confettiBurst();
     nextDay();
   }
 
@@ -319,18 +381,16 @@ function startCards(root, weekId, result, learning) {
 
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
-        card.classList.add('revealed');           // ここで表に回転
+        card.classList.add('revealed');           // ここで表にぐにゃーんと回転
         spotlight.classList.add('out');
         setTimeout(() => spotlight.remove(), 400);
-        confetti(34);
-        // 回転が終わってからスワイプを有効化
+        // めくれ演出（約1.0s）が終わってからスワイプを有効化
         setTimeout(() => {
           attachSwipe(card, {
             onAccept: accept,
-            onRejectQuick: () => reject('skip'),
-            onRejectReason: () => openReasonOverlay(card, reject),
+            onReject: () => openReasonOverlay(card, reject),   // 却下は必ず理由を選ぶ
           });
-        }, 220);
+        }, 1000);
       }, 880);
     };
 
@@ -344,13 +404,26 @@ function startCards(root, weekId, result, learning) {
 
 function dishCard(weekday, dish, idx) {
   // 表面：料理の中身
+  const ingredients = Array.isArray(dish.ingredients) ? dish.ingredients : [];
+  const seasonings = Array.isArray(dish.seasonings) ? dish.seasonings : [];
   const front = h('div', { class: 'card-face card-front' },
     h('div', { class: 'mc-day font-display' }, weekday + 'よう日'),
     h('div', { class: 'mc-name' }, dish.name),
     dish.reason && h('div', { class: 'mc-reason' }, dish.reason),
     dish.seasonal && h('div', { class: 'mc-seasonal' }, '🍂 ' + dish.seasonal),
     dish.kidsNote && h('div', { class: 'mc-kids' }, '👶 なぎ：' + dish.kidsNote),
-    h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下 ／ ↓ 理由つき却下')
+    // 材料名だけ即時表示（採否の判断用。APIは呼ばない）
+    ingredients.length > 0 && h('div', { class: 'mc-ing' },
+      h('span', { class: 'mc-ing-label' }, '🥬 材料'), ingredients.map(nameOnly).join('、')),
+    seasonings.length > 0 && h('div', { class: 'mc-ing' },
+      h('span', { class: 'mc-ing-label' }, '🧂 調味料'), seasonings.map(nameOnly).join('、')),
+    // 分量・作り方はタップ時に取得
+    h('button', {
+      class: 'mc-recipe-btn',
+      onclick: e => { e.stopPropagation(); openRecipeModal(dish.name); },
+      onpointerdown: e => e.stopPropagation(),     // スワイプ判定に食われないように
+    }, '🍳 作り方を見る'),
+    h('div', { class: 'mc-hint muted' }, '→ 採用 ／ ← 却下（理由を選ぶ）')
   );
   // 裏面：めくる前のデザイン
   const back = h('div', { class: 'card-face card-back' },
@@ -379,8 +452,8 @@ function openReasonOverlay(card, rejectFn) {
   card.append(overlay);
 }
 
-// スワイプ操作（pointer events）
-function attachSwipe(card, { onAccept, onRejectQuick, onRejectReason }) {
+// スワイプ操作（pointer events）右＝採用／左＝却下（必ず理由を選ぶ）
+function attachSwipe(card, { onAccept, onReject }) {
   let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
   const TH = 90;
   const okBadge = card.querySelector('.swipe-badge.ok');
@@ -401,15 +474,13 @@ function attachSwipe(card, { onAccept, onRejectQuick, onRejectReason }) {
   const up = () => {
     if (!dragging) return;
     dragging = false; card.style.transition = '';
-    if (dy > TH && Math.abs(dy) > Math.abs(dx)) {        // 下：理由つき却下
-      card.style.transform = 'translateY(40px) scale(.98)';
-      onRejectReason();
-    } else if (dx > TH) {                                 // 右：採用
+    if (dx > TH) {                                        // 右：採用（飛ばす）
       card.style.transform = `translate(${innerWidth}px, ${dy}px) rotate(20deg)`;
       setTimeout(onAccept, 180);
-    } else if (dx < -TH) {                                // 左：却下
-      card.style.transform = `translate(${-innerWidth}px, ${dy}px) rotate(-20deg)`;
-      setTimeout(onRejectQuick, 180);
+    } else if (dx < -TH) {                                // 左：却下 → 理由を選ぶ（カードは中央に戻す）
+      card.style.transform = '';
+      okBadge.style.opacity = ngBadge.style.opacity = 0;
+      onReject();
     } else {                                              // 戻す
       card.style.transform = '';
       okBadge.style.opacity = ngBadge.style.opacity = 0;

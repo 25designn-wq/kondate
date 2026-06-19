@@ -29,13 +29,20 @@
 
     // デモ献立（レシピ画面テスト用）
     const DEMO_DAYS = [
-      { weekday: '月', name: '鶏のはちみつ照り焼き', reason: '平日でも手早く満足感', seasonal: '', kidsNote: 'なぎは味付け前に取り分け' },
-      { weekday: '火', name: '鮭ときのこのホイル焼き', reason: 'きのこが香る季節', seasonal: '秋はきのこが旨みたっぷりで旬', kidsNote: '' },
-      { weekday: '水', name: '豚バラ大根の煮物', reason: '大根が甘い時期', seasonal: '冬大根は煮るととろける', kidsNote: '' },
-      { weekday: '木', name: '野菜たっぷり塩焼きそば', reason: '冷蔵庫の整理にも◎', seasonal: '', kidsNote: '' },
-      { weekday: '金', name: 'おうち餃子', reason: '週末前のお楽しみ', seasonal: '', kidsNote: 'なぎ用はにら少なめで' },
-      { weekday: '土', name: 'ブリの照り焼き', reason: '脂がのって美味しい', seasonal: '寒ブリは冬が旨い', kidsNote: '' },
-      { weekday: '日', name: 'おでん', reason: '寒い日にほっとする', seasonal: '', kidsNote: '' },
+      { weekday: '月', name: '鶏のはちみつ照り焼き', reason: '平日でも手早く満足感', seasonal: '', kidsNote: 'なぎは味付け前に取り分け',
+        ingredients: ['鶏もも肉 300g', '玉ねぎ 1個', 'いんげん 6本'], seasonings: ['はちみつ 大さじ1', '醤油 大さじ2', 'みりん 大さじ1'] },
+      { weekday: '火', name: '鮭ときのこのホイル焼き', reason: 'きのこが香る季節', seasonal: '秋はきのこが旨みたっぷりで旬', kidsNote: '',
+        ingredients: ['生鮭 2切れ', 'しめじ 1袋', 'えのき 1袋'], seasonings: ['バター 10g', '醤油 少々', '塩こしょう 適量'] },
+      { weekday: '水', name: '豚バラ大根の煮物', reason: '大根が甘い時期', seasonal: '冬大根は煮るととろける', kidsNote: '',
+        ingredients: ['豚バラ肉 200g', '大根 1/3本', '生姜 1片'], seasonings: ['醤油 大さじ3', '砂糖 大さじ1', 'みりん 大さじ2'] },
+      { weekday: '木', name: '野菜たっぷり塩焼きそば', reason: '冷蔵庫の整理にも◎', seasonal: '', kidsNote: '',
+        ingredients: ['焼きそば麺 2玉', 'キャベツ 1/4個', '人参 1/2本', '豚こま 100g'], seasonings: ['鶏ガラスープの素 小さじ2', 'ごま油 大さじ1'] },
+      { weekday: '金', name: 'おうち餃子', reason: '週末前のお楽しみ', seasonal: '', kidsNote: 'なぎ用はにら少なめで',
+        ingredients: ['豚ひき肉 200g', 'キャベツ 1/4個', 'にら 1/2束', '餃子の皮 24枚'], seasonings: ['醤油 小さじ2', 'ごま油 小さじ2'] },
+      { weekday: '土', name: 'ブリの照り焼き', reason: '脂がのって美味しい', seasonal: '寒ブリは冬が旨い', kidsNote: '',
+        ingredients: ['ブリ 2切れ', '長ねぎ 1本'], seasonings: ['醤油 大さじ2', 'みりん 大さじ2', '酒 大さじ1'] },
+      { weekday: '日', name: 'おでん', reason: '寒い日にほっとする', seasonal: '', kidsNote: '',
+        ingredients: ['大根 1/2本', '卵 4個', 'こんにゃく 1枚', 'ちくわ 4本'], seasonings: ['だしの素 大さじ1', '醤油 大さじ2'] },
     ];
 
     function showPanel() {

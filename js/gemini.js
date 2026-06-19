@@ -65,16 +65,19 @@ ${sv('wife')}
 - 旬の食材を使う日は seasonal に一言（30字程度）コメントを入れる。旬でない日は seasonal を空文字に。
 - なぎが食べられない食材を使う日は kidsNote に取り分け・代替の短い提案を入れる。問題ない日は空文字に。
 - 各料理に、なぜ今日それを薦めるかの reason を20字程度で添える。
+- 各料理に、主な材料 ingredients（5〜8個）と調味料 seasonings（3〜6個）を、買い物の判断に使えるよう簡潔な分量つきで入れる（例「鶏もも肉 300g」「醤油 大さじ2」）。
 - 却下されたとき用に、days とは別の予備候補 alternates を6品用意する（同じ条件・形式）。
 
 # 出力形式（このJSON以外は何も出力しない）
 {
   "days": [
-    { "weekday": "月", "name": "料理名", "reason": "理由", "seasonal": "", "kidsNote": "" }
+    { "weekday": "月", "name": "料理名", "reason": "理由", "seasonal": "", "kidsNote": "",
+      "ingredients": ["鶏もも肉 300g", "玉ねぎ 1個"], "seasonings": ["醤油 大さじ2", "みりん 大さじ1"] }
     // 火〜日も同様に、合計7要素
   ],
   "alternates": [
-    { "name": "予備の料理名", "reason": "理由", "seasonal": "", "kidsNote": "" }
+    { "name": "予備の料理名", "reason": "理由", "seasonal": "", "kidsNote": "",
+      "ingredients": ["..."], "seasonings": ["..."] }
     // 合計6要素
   ]
 }`;
