@@ -117,9 +117,14 @@ function confetti(amount = 80) {
 }
 
 /* ===================== 画面本体 ===================== */
-export function render() {
+export function render({ demo } = {}) {
   const root = h('div', { class: 'screen meeting' });
-  runLoading(root);
+  if (demo) {
+    // デバッグ用：Geminiもアンケートも使わず、デモ献立で発表フローを試す
+    showIntro(root, currentWeekId(), DEMO, {});
+  } else {
+    runLoading(root);
+  }
   return root;
 }
 

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>こんだて — デバッグ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .dbg-panel { padding: 28px 20px; }
+    .dbg-panel h1 { font-size: 22px; font-weight: 900; margin-bottom: 6px; }
+    .dbg-panel .note { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+    .dbg-panel .field { margin-bottom: 16px; }
+    .dbg-panel .btn { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="fx-layer"></div>
+
+  <script type="module">
+    import { setMe, setHousehold, setGeminiKey, currentWeekId, WEEKDAYS } from './js/state.js';
+    import { h } from './js/dom.js';
+
+    const app = document.getElementById('app');
+
+    // 既存のキーがあれば引き継ぐ
+    const savedKey = localStorage.getItem('kondate_gemini_key') || '';
+
+    // デモ献立（レシピ画面テスト用）
+    const DEMO_DAYS = [
+      { weekday: '月', name: '鶏のはちみつ照り焼き', reason: '平日でも手早く満足感', seasonal: '', kidsNote: 'なぎは味付け前に取り分け' },
+      { weekday: '火', name: '鮭ときのこのホイル焼き', reason: 'きのこが香る季節', seasonal: '秋はきのこが旨みたっぷりで旬', kidsNote: '' },
+      { weekday: '水', name: '豚バラ大根の煮物', reason: '大根が甘い時期', seasonal: '冬大根は煮るととろける', kidsNote: '' },
+      { weekday: '木', name: '野菜たっぷり塩焼きそば', reason: '冷蔵庫の整理にも◎', seasonal: '', kidsNote: '' },
+      { weekday: '金', name: 'おうち餃子', reason: '週末前のお楽しみ', seasonal: '', kidsNote: 'なぎ用はにら少なめで' },
+      { weekday: '土', name: 'ブリの照り焼き', reason: '脂がのって美味しい', seasonal: '寒ブリは冬が旨い', kidsNote: '' },
+      { weekday: '日', name: 'おでん', reason: '寒い日にほっとする', seasonal: '', kidsNote: '' },
+    ];
+
+    function showPanel() {
+      app.innerHTML = '';
+
+      const word = h('input', { class: 'input', type: 'text', value: 'debugword' });
+      const key  = h('input', { class: 'input', type: 'password', placeholder: 'AIza…（レシピ確認に必要）', value: savedKey });
+
+      const panel = h('div', { class: 'dbg-panel' },
+        h('h1', {}, '🛠 デバッグメニュー'),
+        h('p', { class: 'note' },
+          'アンケートや夫婦両方の設定をしなくても、演出やレシピをすぐ試せます。'),
+
+        h('div', { class: 'field' }, h('label', {}, '合言葉（テスト用）'), word),
+        h('div', { class: 'field' }, h('label', {}, 'Gemini APIキー（レシピを試すなら）'), key),
+
+        h('button', {
+          class: 'btn primary',
+          onclick: () => { setup(word.value, key.value); launchMeetingDemo(); },
+        }, '🥁 会議フロー（デモ）を試す'),
+
+        h('button', {
+          class: 'btn',
+          onclick: () => { setup(word.value, key.value); launchMenuDemo(); },
+        }, '🍳 献立＋レシピ画面を試す'),
+
+        h('p', { class: 'note', style: { marginTop: '20px' } },
+          '※「会議フロー」は最後まで進めると、その合言葉のFirestoreに献立を保存します。' +
+          '「献立＋レシピ画面」もデモ献立をFirestoreに書き込みます（テスト用合言葉なので問題なし）。')
+      );
+      app.append(panel);
+    }
+
+    function setup(household, geminiKey) {
+      setMe('husband');
+      setHousehold((household || 'debugword').trim());
+      setGeminiKey((geminiKey || '').trim() || null);
+    }
+
+    async function launchMeetingDemo() {
+      const mod = await import('./js/screens/meeting.js?v=dbg');
+      app.innerHTML = '';
+      app.append(mod.render({ demo: true }));
+    }
+
+    async function launchMenuDemo() {
+      // デモ献立を Firestore に書き込んでから献立画面を開く
+      const fb = await import('./js/firebase.js?v=dbg');
+      await fb.setMenu(currentWeekId(), {
+        days: DEMO_DAYS,
+        status: 'confirmed',
+        confirmedAt: Date.now(),
+        confirmedBy: 'husband',
+      });
+      const mod = await import('./js/screens/menu.js?v=dbg');
+      app.innerHTML = '';
+      app.append(mod.render());
+    }
+
+    showPanel();
+  </script>
+</body>
+</html>
