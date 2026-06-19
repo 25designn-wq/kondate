@@ -150,22 +150,35 @@ body {
 }
 .menu-card:active { cursor: grabbing; }
 
-/* 表裏は重ねて配置（裏が上）。めくり演出は JS が peel-layer を生成して描く */
-.card-flipper { position: relative; width: 100%; height: 100%; min-height: 480px; }
+/* カード1枚を裏返す（表＝カバー／裏＝レシピ）。3Dフリップ＋わずかな縮みで紙の“しなり”感 */
+.card-flipper {
+  position: relative; width: 100%; height: 100%; min-height: 480px;
+  transform-style: preserve-3d; transform: rotateY(0deg);
+}
+.menu-card.revealed .card-flipper { animation: card-flip .85s cubic-bezier(.45,.05,.2,1) forwards; }
+@keyframes card-flip {
+  0%   { transform: rotateY(0deg)   scale(1); }
+  50%  { transform: rotateY(90deg)  scale(.94); }
+  100% { transform: rotateY(180deg) scale(1); }
+}
 .card-face {
-  position: absolute; inset: 0;
+  position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
   border-radius: 26px; border: 1px solid var(--line); box-shadow: var(--shadow-lg);
   padding: 30px 26px; display: flex; flex-direction: column; overflow: hidden;
 }
-.card-front { background: var(--surface); z-index: 1; }
-.card-back  { z-index: 2; }    /* 初期は裏が上に見える */
-
-/* めくり：JS がストリップを生成。各片は両面（表＝カバー／裏＝レシピ）で順に裏返る */
-.peel-layer { position: absolute; inset: 0; z-index: 3; perspective: 1200px; pointer-events: none; }
-.peel-strip { position: absolute; top: 0; transform-style: preserve-3d; will-change: transform; }
-.peel-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.peel-face.back { transform: rotateY(180deg); }
-.peel-face > .card-face { border: none; box-shadow: none; }
+.card-back  { }                                  /* rotateY(0)＝最初に見える面 */
+.card-front { background: var(--surface); transform: rotateY(180deg); }   /* 裏側＝レシピ */
+/* めくり中の光沢（紙が光を受けるように） */
+.card-face::after {
+  content: ''; position: absolute; inset: 0; border-radius: 26px; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.4) 50%, transparent 65%);
+  background-size: 250% 100%; background-position: 100% 0; opacity: 0;
+}
+.menu-card.revealed .card-face::after { animation: card-sheen .85s ease forwards; }
+@keyframes card-sheen {
+  0% { opacity: 0; background-position: 100% 0; } 25% { opacity: 1; } 70% { opacity: 1; }
+  100% { opacity: 0; background-position: 0 0; }
+}
 
 /* 裏面のデザイン */
 .card-back {

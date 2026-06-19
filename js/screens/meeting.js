@@ -178,70 +178,6 @@ function confettiBurst(perSide = 26) {
   });
 }
 
-// 本物のページめくり：カードを縦ストリップに分割し、各片を「表＝カバー／裏＝レシピ」の
-// 両面にして、右端から波打つように順に裏返す。めくり終わると裏（レシピ）が現れる。
-function peelReveal(card, done) {
-  const flipper = card.querySelector('.card-flipper');
-  const back = card.querySelector('.card-back');
-  const front = card.querySelector('.card-front');
-  if (!flipper || !back || !front) { done && done(); return; }
-
-  const W = card.clientWidth;
-  const H = card.clientHeight;
-  const N = 16;
-  const stripW = W / N;
-
-  const cloneFull = (src) => {
-    const c = src.cloneNode(true);
-    Object.assign(c.style, { position: 'absolute', top: '0', width: W + 'px', height: H + 'px', margin: '0', visibility: 'visible' });
-    return c;
-  };
-
-  const layer = document.createElement('div');
-  layer.className = 'peel-layer';
-  const strips = [];
-  for (let i = 0; i < N; i++) {
-    const strip = document.createElement('div');
-    strip.className = 'peel-strip';
-    strip.style.left = (i * stripW) + 'px';
-    strip.style.width = (stripW + 0.6) + 'px';   // のりしろで縦の隙間を防ぐ
-    strip.style.height = H + 'px';
-
-    const ff = document.createElement('div'); ff.className = 'peel-face';        // 表＝カバー
-    const cover = cloneFull(back); cover.style.left = (-i * stripW) + 'px'; ff.appendChild(cover);
-
-    const bf = document.createElement('div'); bf.className = 'peel-face back';    // 裏＝レシピ
-    const recipe = cloneFull(front); recipe.style.left = (-i * stripW) + 'px'; bf.appendChild(recipe);
-
-    strip.appendChild(ff); strip.appendChild(bf);
-    layer.appendChild(strip);
-    strips.push(strip);
-  }
-  back.style.visibility = 'hidden';   // 元の裏面を隠す（ストリップで描く）
-  flipper.appendChild(layer);
-
-  const flipDur = 620, stagger = 540, totalT = flipDur + stagger;
-  const start = performance.now();
-  const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-
-  function frame(now) {
-    const el = now - start;
-    for (let i = 0; i < N; i++) {
-      const delay = (N - 1 - i) / (N - 1) * stagger;   // 右端から順に裏返る
-      let local = (el - delay) / flipDur;
-      local = local < 0 ? 0 : local > 1 ? 1 : local;
-      const e = ease(local);
-      const angle = e * 180;
-      const lift = Math.sin(e * Math.PI) * (stripW * 1.4);   // めくり中に少し浮く
-      strips[i].style.transform = `rotateY(${angle}deg) translateZ(${lift}px)`;
-      strips[i].style.zIndex = String(100 + Math.round(Math.sin(e * Math.PI) * 100));
-    }
-    if (el < totalT) requestAnimationFrame(frame);
-    else { layer.remove(); done && done(); }   // 撤去後は下の本物の表面（レシピ）が残る
-  }
-  requestAnimationFrame(frame);
-}
-
 // 複数のライトが動き回って中央に集まるスポットライト演出（初回のみ）
 function buildSpotlightStage() {
   return h('div', { class: 'spotlight-stage' },
@@ -486,14 +422,15 @@ function startCards(root, weekId, result, learning) {
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
-        // 本物のめくり（カール）を実行し、終わってからスワイプ・ボタンを有効化
-        peelReveal(card, () => {
+        // カードを裏返してレシピを出す（CSSフリップ）。完了後にスワイプ・ボタンを有効化
+        card.classList.add('revealed');
+        setTimeout(() => {
           const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
           attachSwipe(card, { onAccept: accept, onReject: doReject });
           acceptBtn.onclick = accept;
           rejectBtn.onclick = doReject;
           setControls(true);
-        });
+        }, 870);
       }, wait);
     };
 
