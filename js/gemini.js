@@ -12,7 +12,8 @@ const tail = (arr, n) => (Array.isArray(arr) ? arr.slice(-n) : []);
 
 // プロンプト生成。ctx = { profiles, nagi, survey, learning, today }
 export function buildPrompt(ctx) {
-  const { profiles = {}, nagi = {}, survey = {}, learning = {}, today } = ctx;
+  const { profiles = {}, nagi = {}, survey = {}, learning = {}, today, plan = [] } = ctx;
+  const planList = plan.map((d, i) => `${i + 1}日目：${d.date}（${d.label}）`).join('\n');
   const prof = who => {
     const p = profiles[who] || {};
     return [
@@ -58,8 +59,13 @@ ${sv('wife')}
 - 最近採用された料理（似た系統を時々入れてよい）: ${accepted.join('、') || 'なし'}
 - 過去の差し替え（左が却下→右が採用。好みのヒント）: ${changes.map(c => `${c.from}→${c.to}`).join('、') || 'なし'}
 
+# 提案する7日間（この順番・この曜日で提案する）
+${planList}
+
 # 出力ルール
-- 月曜から日曜までの7日分の夕食を提案する。「今週決まっているメニュー」がある場合はその曜日にそのメニューを使い、他の曜日には提案しない。
+- 上記7日間（明日から）の夕食を、リストの順番どおり7日分提案する。週末（土・日）は少し凝った献立にしてよい。
+- 各 day の weekday には、上記リストの該当曜日（${plan.map(d => d.label).join('・') || '月〜日'}）を順番に入れる。
+- 「今週決まっているメニュー」がある場合は、その曜日の日に充てる。
 - 「二度と提案しない」料理は絶対に出さない。「頻度を下げる」料理は今週は避ける。
 - 最近採用された料理と全く同じものは7日内で繰り返さない。
 - 旬の食材を使う日は seasonal に一言（30字程度）コメントを入れる。旬でない日は seasonal を空文字に。

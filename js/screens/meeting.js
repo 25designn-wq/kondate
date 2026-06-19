@@ -4,7 +4,7 @@
 //   下スワイプ  = 却下（理由を選ぶ・ブーブー）→ 予備候補に差し替え
 import { h } from '../dom.js';
 import { navigate } from '../router.js';
-import { state, currentWeekId, WEEKDAYS, todayISO, LABEL } from '../state.js';
+import { state, currentWeekId, next7Days, todayISO, LABEL } from '../state.js';
 import * as fb from '../firebase.js';
 import { generateMenu } from '../gemini.js';
 import { openRecipeModal } from '../recipe.js';
@@ -279,9 +279,9 @@ async function runLoading(root) {
     const [profiles, nagi, survey, learning] = await Promise.all([
       fb.getProfiles(), fb.getNagi(), fb.getSurvey(weekId), fb.getLearning(),
     ]);
-    ctx = { profiles, nagi, survey, learning, today: todayISO() };
+    ctx = { profiles, nagi, survey, learning, today: todayISO(), plan: next7Days() };
   } catch (e) {
-    ctx = { profiles: {}, nagi: {}, survey: {}, learning: {}, today: todayISO() };
+    ctx = { profiles: {}, nagi: {}, survey: {}, learning: {}, today: todayISO(), plan: next7Days() };
   }
 
   try {
@@ -351,11 +351,12 @@ function showIntro(root, weekId, result, learning) {
 
 /* ===================== カードスタック（スワイプ） ===================== */
 function startCards(root, weekId, result, learning) {
+  const plan = next7Days();                  // 明日からの7日 [{label,date}×7]
   const days = result.days.slice(0, 7);
   const alternates = [...(result.alternates || [])];
   const session = {
     dayIndex: 0,
-    current: days.map(d => ({ ...d })),     // 各曜日の現在の料理（差し替えで変わる）
+    current: days.map(d => ({ ...d })),     // 各日の現在の料理（差し替えで変わる）
     original: days.map(d => d.name),         // 最初に提案された料理名（変更ログ用）
     accepted: [],                            // 確定した7日分
     rejected: [],                            // {name, reason}
@@ -431,8 +432,9 @@ function startCards(root, weekId, result, learning) {
   }
 
   function accept() {
-    const dish = session.current[session.dayIndex];
-    session.accepted.push({ ...dish, weekday: WEEKDAYS[session.dayIndex] });
+    const i = session.dayIndex;
+    const dish = session.current[i];
+    session.accepted.push({ ...dish, weekday: plan[i].label, date: plan[i].date });
     pulse(acceptBtn, 'pop');
     cheer(); confettiBurst();
     nextDay();
@@ -446,7 +448,7 @@ function startCards(root, weekId, result, learning) {
     // 予備候補に差し替え
     if (session.altPtr < alternates.length) {
       const alt = alternates[session.altPtr++];
-      session.current[session.dayIndex] = { ...alt, weekday: WEEKDAYS[session.dayIndex] };
+      session.current[session.dayIndex] = { ...alt };
       mountTop();
     } else {
       showToast('予備の候補がもうないよ。これで採用してね');
@@ -460,7 +462,7 @@ function startCards(root, weekId, result, learning) {
     setControls(false);   // 発表前は操作ボタンを無効化
     const i = session.dayIndex;
     const dish = session.current[i];
-    const card = dishCard(WEEKDAYS[i], dish, i);
+    const card = dishCard(plan[i], dish, i);
     stack.append(card);
 
     let revealed = false;
@@ -507,12 +509,13 @@ function startCards(root, weekId, result, learning) {
   mountTop();
 }
 
-function dishCard(weekday, dish, idx) {
+function dishCard(day, dish, idx) {
+  const dayLabel = `${day.date}（${day.label}）`;
   // 表面：料理の中身
   const ingredients = Array.isArray(dish.ingredients) ? dish.ingredients : [];
   const seasonings = Array.isArray(dish.seasonings) ? dish.seasonings : [];
   const front = h('div', { class: 'card-face card-front' },
-    h('div', { class: 'mc-day font-display' }, weekday + 'よう日'),
+    h('div', { class: 'mc-day font-display' }, dayLabel),
     h('div', { class: 'mc-name' }, dish.name),
     dish.reason && h('div', { class: 'mc-reason' }, dish.reason),
     dish.seasonal && h('div', { class: 'mc-seasonal' }, '🍂 ' + dish.seasonal),
@@ -536,7 +539,7 @@ function dishCard(weekday, dish, idx) {
   // 裏面：めくる前のデザイン
   const back = h('div', { class: 'card-face card-back' },
     h('div', { class: 'cb-mark font-display' }, 'KONDATE'),
-    h('div', { class: 'cb-day' }, weekday + 'よう日'),
+    h('div', { class: 'cb-day' }, dayLabel),
     h('div', { class: 'cb-q' }, '？'),
     h('div', { class: 'cb-hint' }, idx === 0 ? 'タップして発表 🥁' : '🥁 発表！')
   );

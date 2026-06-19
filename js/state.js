@@ -33,8 +33,19 @@ export function currentWeekId(date = new Date()) {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-// 月曜始まりの曜日ラベル
+// 月曜始まりの曜日ラベル（後方互換のため残す）
 export const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日'];
+
+// 会議の「翌日」から7日分の {label, date}。例：水曜に呼ぶと木〜水。
+export function next7Days(from = new Date()) {
+  const W = ['日', '月', '火', '水', '木', '金', '土'];
+  const out = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+    out.push({ label: W[d.getDay()], date: `${d.getMonth() + 1}/${d.getDate()}` });
+  }
+  return out;
+}
 
 export function todayISO() {
   const n = new Date();

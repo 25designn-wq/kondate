@@ -2,7 +2,7 @@
 // なぎメモのインライン編集、材料名の表示、ドラッグでの並び替えに対応。
 import { h, topbar } from '../dom.js';
 import { navigate } from '../router.js';
-import { LABEL, currentWeekId, WEEKDAYS } from '../state.js';
+import { LABEL, currentWeekId } from '../state.js';
 import * as fb from '../firebase.js';
 import { openRecipeModal } from '../recipe.js';
 
@@ -48,11 +48,13 @@ export function render() {
     }
     root.append(
       h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '14px' } },
-        '≡ をドラッグすると曜日を入れ替えできます')
+        '≡ をドラッグすると、日付はそのままで料理だけ入れ替えできます')
     );
 
     // days 配列をコピーして保持（編集・並び替えで更新する）
     const days = menu.days.map(d => ({ ...d }));
+    // 日付スロット（位置固定）。並び替えでは料理だけが動き、曜日・日付は位置に残る
+    const slots = days.map(d => ({ weekday: d.weekday, date: d.date }));
 
     // カードを並べるコンテナ（並び替えはこの中で行う）
     const listEl = h('div', { class: 'menu-list' });
@@ -69,10 +71,10 @@ export function render() {
       days.forEach(day => listEl.append(buildDayCard(day)));
     }
 
-    // 並び替え確定：DOMの順序から days を作り直し、曜日を位置で振り直して保存
+    // 並び替え確定：DOMの順序から days を作り直し、日付スロット（曜日・日付）を位置で振り直して保存
     function commitReorder() {
       const order = [...listEl.querySelectorAll('.day-card')].map(c => c._day);
-      order.forEach((d, i) => { d.weekday = WEEKDAYS[i]; });
+      order.forEach((d, i) => { d.weekday = slots[i].weekday; d.date = slots[i].date; });
       days.length = 0; days.push(...order);
       buildDayCards();
       fb.setMenu(weekId, { days }).catch(() => {});
@@ -111,12 +113,15 @@ export function render() {
         }
         if (target) listEl.insertBefore(ph, target);
         else listEl.append(ph);
-        // 曜日は位置に固定。各カードの曜日バッジを現在の並び順に合わせて更新
-        // （料理だけが動き、曜日は月→日のまま、という見え方にする）
+        // 日付スロットは位置に固定。各カードのバッジ・日付を現在の並び順に合わせて更新
+        // （料理だけが動き、曜日・日付はその位置に残るという見え方にする）
         const seq = [...listEl.querySelectorAll('.day-card:not(.dragging), .day-placeholder')];
         seq.forEach((el, k) => {
-          const badge = el === ph ? card.querySelector('.day-badge') : el.querySelector('.day-badge');
-          if (badge) badge.textContent = WEEKDAYS[k];
+          const host = el === ph ? card : el;
+          const badge = host.querySelector('.day-badge');
+          const dateEl = host.querySelector('.day-date');
+          if (badge && slots[k]) badge.textContent = slots[k].weekday;
+          if (dateEl && slots[k]) dateEl.textContent = slots[k].date || '';
         });
       };
       const onUp = ev => {
@@ -150,6 +155,7 @@ export function render() {
       const header = h('div', { class: 'day-header' },
         handle,
         h('span', { class: 'day-badge' }, day.weekday),
+        day.date && h('span', { class: 'day-date muted' }, day.date),
         nameEl,
         chevron
       );
