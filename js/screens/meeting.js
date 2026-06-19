@@ -271,7 +271,7 @@ function showIntro(root, weekId, result, learning) {
       h('h1', { class: 'mt-8', style: { fontSize: '30px', fontWeight: 900, textAlign: 'center', lineHeight: 1.3 } },
         '今週の献立、\n発表します'.split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('p', { class: 'muted mt-16', style: { fontSize: '13px', textAlign: 'center' } },
-        'カードをめくって1日ずつ発表。\n右に弾けば採用、左で却下、下で理由つき却下。'
+        'カードをめくって1日ずつ発表。\n右で採用、左で不採用（理由を選ぶ）。下のボタンでもOK。'
           .split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('button', {
         class: 'btn primary mt-32', style: { maxWidth: '240px' },
@@ -306,13 +306,11 @@ function startCards(root, weekId, result, learning) {
   // カード外の操作ボタン（スワイプと同じ動作。発表後に有効化）
   const rejectBtn = h('button', { class: 'mc-ctrl reject', disabled: true },
     h('span', { class: 'ctrl-emoji' }, '👎'),
-    h('span', { class: 'ctrl-label' }, '却下'),
-    h('span', { class: 'ctrl-arrow' }, '←')
+    h('span', { class: 'ctrl-label' }, '不採用')
   );
   const acceptBtn = h('button', { class: 'mc-ctrl accept', disabled: true },
-    h('span', { class: 'ctrl-arrow' }, '→'),
-    h('span', { class: 'ctrl-label' }, '採用'),
-    h('span', { class: 'ctrl-emoji' }, '👍')
+    h('span', { class: 'ctrl-emoji' }, '👍'),
+    h('span', { class: 'ctrl-label' }, '採用')
   );
   const controls = h('div', { class: 'meeting-controls' }, rejectBtn, acceptBtn);
   function setControls(on) { acceptBtn.disabled = rejectBtn.disabled = !on; }
@@ -424,8 +422,12 @@ function startCards(root, weekId, result, learning) {
       }, wait);
     };
 
-    // 裏面タップ（=発表）で表に
-    card.addEventListener('click', reveal);
+    // 最初の1枚だけタップで発表。2枚目以降は自動でめくる。
+    if (session.dayIndex === 0) {
+      card.addEventListener('click', reveal);
+    } else {
+      setTimeout(reveal, 550);
+    }
   }
 
   renderProgress();
@@ -463,7 +465,7 @@ function dishCard(weekday, dish, idx) {
     h('div', { class: 'cb-mark font-display' }, 'KONDATE'),
     h('div', { class: 'cb-day' }, weekday + 'よう日'),
     h('div', { class: 'cb-q' }, '？'),
-    h('div', { class: 'cb-hint' }, 'タップして発表 🥁')
+    h('div', { class: 'cb-hint' }, idx === 0 ? 'タップして発表 🥁' : '🥁 発表！')
   );
   return h('div', { class: 'menu-card', 'data-idx': idx },
     h('div', { class: 'swipe-badge ok' }, '採用'),

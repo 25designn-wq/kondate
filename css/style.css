@@ -205,20 +205,24 @@ body {
 .mc-recipe-btn:active { transform: scale(.96); }
 .mc-hint { font-size: 12px; text-align: center; }
 
-/* カード外の操作ボタン（採用 / 却下） */
-.meeting-controls { display: flex; gap: 14px; padding: 6px 16px calc(20px + env(safe-area-inset-bottom)); }
-.mc-ctrl {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 15px 12px; border-radius: 18px; border: 1.5px solid var(--line);
-  background: var(--surface); font-family: inherit; font-weight: 800; font-size: 15px;
-  cursor: pointer; box-shadow: var(--shadow); transition: transform .12s, opacity .15s;
+/* カード外の操作ボタン（不採用 / 採用）：左右下スミに置いた、ちょい傾いた丸ボタン */
+.meeting-controls {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 6px 22px calc(22px + env(safe-area-inset-bottom));
 }
-.mc-ctrl:active { transform: scale(.95); }
-.mc-ctrl:disabled { opacity: .38; box-shadow: none; }
-.mc-ctrl .ctrl-emoji { font-size: 24px; line-height: 1; }
-.mc-ctrl .ctrl-arrow { font-size: 18px; font-weight: 900; opacity: .8; }
-.mc-ctrl.accept { border-color: var(--ok); color: var(--ok); background: linear-gradient(180deg, #fff, #f3fff9); }
-.mc-ctrl.reject { border-color: var(--ng); color: var(--ng); background: linear-gradient(180deg, #fff, #fff4f6); }
+.mc-ctrl {
+  width: 94px; height: 94px; border-radius: 50%; border: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  font-family: inherit; font-weight: 900; font-size: 13px; color: #fff; cursor: pointer;
+  box-shadow: var(--shadow-lg); transition: transform .12s, opacity .15s, box-shadow .15s;
+}
+.mc-ctrl:disabled { opacity: .4; box-shadow: none; }
+.mc-ctrl .ctrl-emoji { font-size: 30px; line-height: 1; }
+.mc-ctrl .ctrl-label { letter-spacing: .04em; text-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.mc-ctrl.reject { background: linear-gradient(145deg, #ff7a91, #ff4d6d); transform: rotate(-9deg); }
+.mc-ctrl.accept { background: linear-gradient(145deg, #3ddc92, #1fb673); transform: rotate(9deg); }
+.mc-ctrl.reject:active { transform: rotate(-9deg) scale(.9); }
+.mc-ctrl.accept:active { transform: rotate(9deg) scale(.9); }
 
 /* スワイプ判定バッジ */
 .swipe-badge {

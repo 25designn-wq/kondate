@@ -111,6 +111,13 @@ export function render() {
         }
         if (target) listEl.insertBefore(ph, target);
         else listEl.append(ph);
+        // 曜日は位置に固定。各カードの曜日バッジを現在の並び順に合わせて更新
+        // （料理だけが動き、曜日は月→日のまま、という見え方にする）
+        const seq = [...listEl.querySelectorAll('.day-card:not(.dragging), .day-placeholder')];
+        seq.forEach((el, k) => {
+          const badge = el === ph ? card.querySelector('.day-badge') : el.querySelector('.day-badge');
+          if (badge) badge.textContent = WEEKDAYS[k];
+        });
       };
       const onUp = ev => {
         if (ev.pointerId !== pointerId) return;
