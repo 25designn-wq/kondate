@@ -3,7 +3,7 @@
 //
 // APP_VERSION：デプロイのたびに数字を上げると、画面ファイルのキャッシュを確実に破棄できる。
 // （スマホ・PWAは強くキャッシュするため、更新が反映されない時はここを上げる）
-const APP_VERSION = '11';
+const APP_VERSION = '12';
 const appEl = () => document.getElementById('app');
 
 export async function navigate(name, params = {}) {

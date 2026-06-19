@@ -150,35 +150,16 @@ body {
 }
 .menu-card:active { cursor: grabbing; }
 
-/* カード1枚を裏返す（表＝カバー／裏＝レシピ）。3Dフリップ＋わずかな縮みで紙の“しなり”感 */
-.card-flipper {
-  position: relative; width: 100%; height: 100%; min-height: 480px;
-  transform-style: preserve-3d; transform: rotateY(0deg);
-}
-.menu-card.revealed .card-flipper { animation: card-flip .85s cubic-bezier(.45,.05,.2,1) forwards; }
-@keyframes card-flip {
-  0%   { transform: rotateY(0deg)   scale(1); }
-  50%  { transform: rotateY(90deg)  scale(.94); }
-  100% { transform: rotateY(180deg) scale(1); }
-}
+/* 表裏フラット重ね：下＝レシピ(表面)、上＝カバー(裏面)。めくりは canvas が描く */
+.card-flipper { position: relative; width: 100%; height: 100%; min-height: 480px; }
 .card-face {
-  position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  position: absolute; inset: 0;
   border-radius: 26px; border: 1px solid var(--line); box-shadow: var(--shadow-lg);
   padding: 30px 26px; display: flex; flex-direction: column; overflow: hidden;
 }
-.card-back  { }                                  /* rotateY(0)＝最初に見える面 */
-.card-front { background: var(--surface); transform: rotateY(180deg); }   /* 裏側＝レシピ */
-/* めくり中の光沢（紙が光を受けるように） */
-.card-face::after {
-  content: ''; position: absolute; inset: 0; border-radius: 26px; pointer-events: none;
-  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.4) 50%, transparent 65%);
-  background-size: 250% 100%; background-position: 100% 0; opacity: 0;
-}
-.menu-card.revealed .card-face::after { animation: card-sheen .85s ease forwards; }
-@keyframes card-sheen {
-  0% { opacity: 0; background-position: 100% 0; } 25% { opacity: 1; } 70% { opacity: 1; }
-  100% { opacity: 0; background-position: 0 0; }
-}
+.card-front { background: var(--surface); z-index: 1; }   /* 下：レシピ */
+.card-back  { z-index: 2; }                                /* 上：カバー */
+.card-curl  { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 
 /* 裏面のデザイン */
 .card-back {

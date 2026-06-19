@@ -178,6 +178,94 @@ function confettiBurst(perSide = 26) {
   });
 }
 
+// カバー面（裏面デザイン）を canvas に描く。DOM の .card-back と見た目を合わせる。
+function drawCover(ctx, W, H, dayLabel) {
+  const rr = (x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  };
+  ctx.save();
+  rr(0, 0, W, H, 26); ctx.clip();
+  const g = ctx.createLinearGradient(0, 0, W * 0.6, H);
+  g.addColorStop(0, '#ff6b4a'); g.addColorStop(.55, '#ff5a3c'); g.addColorStop(1, '#e8431f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  rr(14, 14, W - 28, H - 28, 18); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+  ctx.globalAlpha = .85;
+  ctx.font = '800 13px Outfit, system-ui, sans-serif';
+  ctx.fillText('K O N D A T E', W / 2, H * 0.28);
+  ctx.globalAlpha = 1;
+  ctx.font = '900 22px "Zen Kaku Gothic New", system-ui, sans-serif';
+  ctx.fillText(dayLabel, W / 2, H * 0.28 + 30);
+  ctx.font = '900 96px "Zen Kaku Gothic New", system-ui, sans-serif';
+  ctx.fillText('？', W / 2, H * 0.62);
+  ctx.restore();
+}
+
+// 本物のめくり：カバー面を canvas に写し、右端から円柱状にカール（しなり）させて
+// 下のレシピ面を出す。requestAnimationFrame でピクセル単位に歪ませるので滑らかに曲がる。
+function curlReveal(card, dayLabel, done) {
+  const back = card.querySelector('.card-back');
+  const flipper = card.querySelector('.card-flipper');
+  const W = Math.round(card.clientWidth), H = Math.round(card.clientHeight);
+  if (!back || !flipper || !W || !H) { back && (back.style.visibility = 'hidden'); done && done(); return; }
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+  // カバーをオフスクリーンに描画
+  const cover = document.createElement('canvas');
+  cover.width = W * dpr; cover.height = H * dpr;
+  const cc = cover.getContext('2d'); cc.scale(dpr, dpr);
+  drawCover(cc, W, H, dayLabel);
+
+  // 表示用 canvas を重ねる
+  const cv = document.createElement('canvas');
+  cv.className = 'card-curl';
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  flipper.appendChild(cv);
+  back.style.visibility = 'hidden';   // 元のカバーを隠す（canvas で描く）
+
+  const dur = 1000, startT = performance.now();
+  const R = Math.max(34, W * 0.16);           // カールの半径（小さいほどきつく曲がる）
+  const ease = p => (p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+
+  function frame(now) {
+    let p = (now - startT) / dur; if (p > 1) p = 1;
+    const e = ease(p);
+    const curlX = W - e * (W + R * Math.PI);   // めくり線が右端→左外へ
+    ctx.clearRect(0, 0, W, H);
+
+    // まだめくれていない平らな部分（0..curlX）
+    if (curlX > 0) ctx.drawImage(cover, 0, 0, Math.min(W, curlX) * dpr, H * dpr, 0, 0, Math.min(W, curlX), H);
+
+    // カール部分（curlX より右）を円柱面にマップ
+    const step = 2;
+    for (let x = Math.max(0, curlX); x < W; x += step) {
+      const theta = (x - curlX) / R;
+      if (theta > Math.PI) break;                 // 裏側に巻き込んで見えない
+      const sx = Math.cos(theta);                  // 奥行きで横方向に縮む
+      const destX = curlX + R * Math.sin(theta);
+      const destW = Math.max(0.7, Math.abs(sx) * step + 0.7);
+      ctx.save();
+      ctx.translate(destX, 0);
+      ctx.drawImage(cover, x * dpr, 0, step * dpr, H * dpr, 0, 0, destW, H);
+      // 曲面の陰影（奥へ行くほど暗く）
+      const shade = theta < Math.PI / 2 ? (theta / (Math.PI / 2)) * 0.42
+        : 0.42 + ((theta - Math.PI / 2) / (Math.PI / 2)) * 0.28;
+      ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, shade)})`;
+      ctx.fillRect(0, 0, destW + 0.7, H);
+      ctx.restore();
+    }
+    if (p < 1) requestAnimationFrame(frame);
+    else { cv.remove(); done && done(); }
+  }
+  requestAnimationFrame(frame);
+}
+
 // 複数のライトが動き回って中央に集まるスポットライト演出（初回のみ）
 function buildSpotlightStage() {
   return h('div', { class: 'spotlight-stage' },
@@ -418,19 +506,19 @@ function startCards(root, weekId, result, learning) {
       card.classList.add('drumroll-shake');
       drumrollSound(showStage ? 1.5 : 0.85);
 
+      const dayLabel = `${plan[i].date}（${plan[i].label}）`;
       const wait = showStage ? 1550 : 880;
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
-        // カードを裏返してレシピを出す（CSSフリップ）。完了後にスワイプ・ボタンを有効化
-        card.classList.add('revealed');
-        setTimeout(() => {
+        // カバーをカール（しなり）させてめくり、下のレシピ面を出す。完了後に操作を有効化
+        curlReveal(card, dayLabel, () => {
           const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
           attachSwipe(card, { onAccept: accept, onReject: doReject });
           acceptBtn.onclick = accept;
           rejectBtn.onclick = doReject;
           setControls(true);
-        }, 870);
+        });
       }, wait);
     };
 
