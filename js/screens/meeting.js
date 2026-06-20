@@ -52,6 +52,13 @@ const REASONS = [
   { key: 'heavy', emoji: '😮‍💨', label: '作るのが面倒' },
 ];
 
+// ボタン演出：毎回ランダムに選ぶ（採用＝ポジティブ／不採用＝ネガティブ）
+const POP_VARIANTS = ['pop-a', 'pop-b', 'pop-c'];
+const SHAKE_VARIANTS = ['shake-a', 'shake-b', 'shake-c'];
+const ACCEPT_EMOJI = ['👍', '🎉', '✨', '😋', '🙌', '💯', '🥳', '🤤', '❤️', '⭐'];
+const REJECT_EMOJI = ['👎', '😣', '💦', '🙅', '🥲', '😬', '💔', '🚫', '😵', '🌀'];
+const pick = a => a[(Math.random() * a.length) | 0];
+
 /* ===================== 効果音（Web Audio で合成） ===================== */
 let actx = null;
 const audio = () => (actx ||= new (window.AudioContext || window.webkitAudioContext)());
@@ -507,26 +514,63 @@ function startCards(root, weekId, result, learning) {
     mountTop();
   }
 
-  function pulse(btn, cls) {
-    btn.classList.remove(cls);
+  // 毎回ランダムなアニメを再生
+  function pulse(btn, variants) {
+    variants.forEach(v => btn.classList.remove(v));
     void btn.offsetWidth;        // リフローでアニメをリスタート
+    const cls = pick(variants);
     btn.classList.add(cls);
-    setTimeout(() => btn.classList.remove(cls), 600);
+    setTimeout(() => btn.classList.remove(cls), 800);
+  }
+
+  // ボタン中心から衝撃波リングを出す
+  function shockwave(btn, tone) {
+    const r = btn.getBoundingClientRect();
+    const w = document.createElement('div');
+    w.className = 'fx-shock ' + tone;
+    w.style.left = (r.left + r.width / 2) + 'px';
+    w.style.top = (r.top + r.height / 2) + 'px';
+    document.body.append(w);
+    setTimeout(() => w.remove(), 650);
+  }
+
+  // ボタンから絵文字をド派手に飛び散らせる
+  function burstEmoji(btn, emojis, n) {
+    const r = btn.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('div');
+      s.className = 'fx-emoji';
+      s.textContent = pick(emojis);
+      s.style.left = cx + 'px';
+      s.style.top = cy + 'px';
+      s.style.setProperty('--dx', (Math.random() * 280 - 140).toFixed(0) + 'px');
+      s.style.setProperty('--rot', (Math.random() * 140 - 70).toFixed(0) + 'deg');
+      s.style.setProperty('--sc', (1.1 + Math.random() * 1.2).toFixed(2));
+      s.style.fontSize = (26 + Math.random() * 22).toFixed(0) + 'px';
+      s.style.animationDelay = (Math.random() * 0.12).toFixed(2) + 's';
+      document.body.append(s);
+      setTimeout(() => s.remove(), 1100);
+    }
   }
 
   function accept() {
     const i = session.dayIndex;
     const dish = session.current[i];
     session.accepted.push({ ...dish, weekday: plan[i].label, date: plan[i].date });
-    pulse(acceptBtn, 'pop');
-    cheer(); confettiBurst();
+    pulse(acceptBtn, POP_VARIANTS);
+    shockwave(acceptBtn, 'ok');
+    burstEmoji(acceptBtn, ACCEPT_EMOJI, 14 + (Math.random() * 4 | 0));
+    cheer(); confettiBurst(36);
     nextDay();
   }
 
   function reject(reason) {
     const dish = session.current[session.dayIndex];
     session.rejected.push({ name: dish.name, reason });
-    pulse(rejectBtn, 'shake');
+    pulse(rejectBtn, SHAKE_VARIANTS);
+    shockwave(rejectBtn, 'ng');
+    burstEmoji(rejectBtn, REJECT_EMOJI, 10 + (Math.random() * 4 | 0));
     buzz();
     // 予備候補に差し替え
     if (session.altPtr < alternates.length) {
