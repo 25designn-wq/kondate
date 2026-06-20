@@ -205,63 +205,122 @@ function drawCover(ctx, W, H, dayLabel) {
   ctx.restore();
 }
 
-// 本物のめくり：カバー面を canvas に写し、右端から円柱状にカール（しなり）させて
-// 下のレシピ面を出す。requestAnimationFrame でピクセル単位に歪ませるので滑らかに曲がる。
-function curlReveal(card, dayLabel, done) {
+// canvas 用：折り返し描画
+function wrapText(ctx, text, x, y, maxW, lh, maxLines) {
+  const chars = [...String(text || '')];
+  let line = '', lines = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const test = line + chars[i];
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, y); y += lh; line = chars[i]; lines++;
+      if (lines >= maxLines - 1) {
+        // 残りは最終行に収める（はみ出しは…で省略）
+        let rest = chars.slice(i).join('');
+        while (rest && ctx.measureText(rest + '…').width > maxW) rest = rest.slice(0, -1);
+        ctx.fillText(rest + (chars.slice(i).join('').length > rest.length ? '…' : ''), x, y);
+        return y + lh;
+      }
+    } else line = test;
+  }
+  ctx.fillText(line, x, y); return y + lh;
+}
+
+const roundRectPath = (ctx, x, y, w, h, r) => {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+};
+
+// レシピ面（裏面）を canvas に簡易描画。めくり完了後は本物のDOMに切り替わる。
+function drawRecipe(ctx, W, H, dish, dayLabel) {
+  ctx.save();
+  roundRectPath(ctx, 0, 0, W, H, 26); ctx.clip();
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  const pad = 26;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ff5a3c'; ctx.font = '800 15px Outfit, system-ui, sans-serif';
+  ctx.fillText(dayLabel, pad, 46);
+  ctx.fillStyle = '#16181d'; ctx.font = '900 27px "Zen Kaku Gothic New", system-ui, sans-serif';
+  let y = wrapText(ctx, dish.name, pad, 86, W - pad * 2, 34, 2);
+  if (dish.reason) {
+    ctx.fillStyle = '#8a909c'; ctx.font = '400 14px "Zen Kaku Gothic New", system-ui, sans-serif';
+    y = wrapText(ctx, dish.reason, pad, y + 16, W - pad * 2, 22, 2);
+  }
+  const ing = (Array.isArray(dish.ingredients) ? dish.ingredients : []).map(nameOnly).join('、');
+  if (ing) {
+    ctx.fillStyle = '#16181d'; ctx.font = '700 13px "Zen Kaku Gothic New", system-ui, sans-serif';
+    y = wrapText(ctx, '🥬 ' + ing, pad, y + 18, W - pad * 2, 20, 2);
+  }
+  ctx.restore();
+}
+
+// 本物のめくり：カードを縦の薄片に分割し、各片を回転（しなり）させて裏返す。
+// 表＝カバー、裏＝レシピ。右端が先に回り込み、波打ちながら裏面（レシピ）が現れる。
+function curlReveal(card, dish, dayLabel, done) {
   const back = card.querySelector('.card-back');
+  const front = card.querySelector('.card-front');
   const flipper = card.querySelector('.card-flipper');
   const W = Math.round(card.clientWidth), H = Math.round(card.clientHeight);
   if (!back || !flipper || !W || !H) { back && (back.style.visibility = 'hidden'); done && done(); return; }
   const dpr = Math.min(2, window.devicePixelRatio || 1);
 
-  // カバーをオフスクリーンに描画
-  const cover = document.createElement('canvas');
-  cover.width = W * dpr; cover.height = H * dpr;
-  const cc = cover.getContext('2d'); cc.scale(dpr, dpr);
-  drawCover(cc, W, H, dayLabel);
+  const mk = (drawFn) => {
+    const cnv = document.createElement('canvas');
+    cnv.width = W * dpr; cnv.height = H * dpr;
+    const c = cnv.getContext('2d'); c.scale(dpr, dpr); drawFn(c);
+    return cnv;
+  };
+  const cover = mk(c => drawCover(c, W, H, dayLabel));     // 表
+  const recipe = mk(c => drawRecipe(c, W, H, dish, dayLabel)); // 裏
 
-  // 表示用 canvas を重ねる
   const cv = document.createElement('canvas');
   cv.className = 'card-curl';
   cv.width = W * dpr; cv.height = H * dpr;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
   flipper.appendChild(cv);
-  back.style.visibility = 'hidden';   // 元のカバーを隠す（canvas で描く）
+  back.style.visibility = 'hidden';
+  if (front) front.style.visibility = 'hidden';   // 完了まで本物は隠す（canvasで描く）
 
-  const dur = 1000, startT = performance.now();
-  const R = Math.max(34, W * 0.16);           // カールの半径（小さいほどきつく曲がる）
+  const dur = 1050, startT = performance.now();
+  const BEND = 1.2;                                  // しなりの強さ（右端が先行する角度差）
+  const step = 2;
   const ease = p => (p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+  ctx.imageSmoothingEnabled = true;
+  const mapPhi = (x, base) => {
+    let phi = base + BEND * (x / W - 0.5);            // 中央回転フリップ＋右が先行
+    return phi < 0 ? 0 : phi > Math.PI ? Math.PI : phi;
+  };
 
   function frame(now) {
     let p = (now - startT) / dur; if (p > 1) p = 1;
-    const e = ease(p);
-    const curlX = W - e * (W + R * Math.PI);   // めくり線が右端→左外へ
+    const base = ease(p) * Math.PI;
     ctx.clearRect(0, 0, W, H);
-
-    // まだめくれていない平らな部分（0..curlX）
-    if (curlX > 0) ctx.drawImage(cover, 0, 0, Math.min(W, curlX) * dpr, H * dpr, 0, 0, Math.min(W, curlX), H);
-
-    // カール部分（curlX より右）を円柱面にマップ
-    const step = 2;
-    for (let x = Math.max(0, curlX); x < W; x += step) {
-      const theta = (x - curlX) / R;
-      if (theta > Math.PI) break;                 // 裏側に巻き込んで見えない
-      const sx = Math.cos(theta);                  // 奥行きで横方向に縮む
-      const destX = curlX + R * Math.sin(theta);
-      const destW = Math.max(0.7, Math.abs(sx) * step + 0.7);
-      ctx.save();
-      ctx.translate(destX, 0);
-      ctx.drawImage(cover, x * dpr, 0, step * dpr, H * dpr, 0, 0, destW, H);
-      // 曲面の陰影（奥へ行くほど暗く）
-      const shade = theta < Math.PI / 2 ? (theta / (Math.PI / 2)) * 0.42
-        : 0.42 + ((theta - Math.PI / 2) / (Math.PI / 2)) * 0.28;
-      ctx.fillStyle = `rgba(0,0,0,${Math.min(0.7, shade)})`;
-      ctx.fillRect(0, 0, destW + 0.7, H);
-      ctx.restore();
+    // 1) 各列を素のまま、隙間なくタイル状に描く（影は重ねない＝縦縞を防ぐ）
+    for (let x = 0; x < W; x += step) {
+      const phi = mapPhi(x, base), phi2 = mapPhi(x + step, base);
+      const xa = W / 2 + (x - W / 2) * Math.cos(phi);
+      const xb = W / 2 + ((x + step) - W / 2) * Math.cos(phi2);
+      const left = Math.min(xa, xb), w = Math.abs(xb - xa) + 0.8;
+      const isFront = phi < Math.PI / 2;
+      const img = isFront ? cover : recipe;
+      const srcX = isFront ? x : (W - (x + step));     // 裏面は左右反転してサンプル
+      ctx.drawImage(img, srcX * dpr, 0, step * dpr, H * dpr, left, 0, w, H);
     }
+    // 2) 折り目(phi=π/2)の画面x位置を逆算し、そこを谷にした柔らかい影を1回だけ重ねる
+    const xf = W * ((Math.PI / 2 - base) / BEND + 0.5);
+    const bandW = W * 0.5;
+    const g = ctx.createLinearGradient(xf - bandW, 0, xf + bandW, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0.34)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+
     if (p < 1) requestAnimationFrame(frame);
-    else { cv.remove(); done && done(); }
+    else { cv.remove(); if (front) front.style.visibility = ''; done && done(); }
   }
   requestAnimationFrame(frame);
 }
@@ -511,8 +570,8 @@ function startCards(root, weekId, result, learning) {
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
-        // カバーをカール（しなり）させてめくり、下のレシピ面を出す。完了後に操作を有効化
-        curlReveal(card, dayLabel, () => {
+        // カードをしならせて裏返し、裏面のレシピを出す。完了後に操作を有効化
+        curlReveal(card, dish, dayLabel, () => {
           const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
           attachSwipe(card, { onAccept: accept, onReject: doReject });
           acceptBtn.onclick = accept;
