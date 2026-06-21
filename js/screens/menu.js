@@ -48,7 +48,7 @@ export function render() {
     }
     root.append(
       h('p', { class: 'muted', style: { fontSize: '12px', marginBottom: '14px' } },
-        '≡ をドラッグすると、日付はそのままで料理だけ入れ替えできます')
+        '≡ をドラッグして、料理を好きな曜日に並べ替えできます（日付は固定）')
     );
 
     // days 配列をコピーして保持（編集・並び替えで更新する）

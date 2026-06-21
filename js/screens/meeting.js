@@ -423,9 +423,9 @@ function showIntro(root, weekId, result, learning) {
     h('div', { class: 'meeting-center' },
       h('div', { class: 'font-display', style: { fontSize: '13px', letterSpacing: '.3em', color: 'var(--muted)' } }, 'THIS WEEK'),
       h('h1', { class: 'mt-8', style: { fontSize: '30px', fontWeight: 900, textAlign: 'center', lineHeight: 1.3 } },
-        '今週の献立、\n発表します'.split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
+        '今週の7品、\n発表します'.split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('p', { class: 'muted mt-16', style: { fontSize: '13px', textAlign: 'center' } },
-        'カードをめくって1日ずつ発表。\n右で採用、左で不採用（理由を選ぶ）。下のボタンでもOK。'
+        '1品ずつめくって採否を決定。\n右で採用、左で不採用（理由を選ぶ）。下のボタンでもOK。\n曜日の割り当ては、あとで献立リストで並べ替えできます。'
           .split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
       h('button', {
         class: 'btn primary mt-32', style: { maxWidth: '240px' },
@@ -498,9 +498,11 @@ function startCards(root, weekId, result, learning) {
       root.append(
         h('div', { class: 'meeting-center' },
           h('div', { style: { fontSize: '52px' } }, '🎉'),
-          h('h1', { class: 'mt-16', style: { fontSize: '28px', fontWeight: 900 } }, '今週の献立、決定！'),
-          h('p', { class: 'muted mt-8' }, 'おつかれさま。いただきます。'),
-          h('button', { class: 'btn primary mt-32', style: { maxWidth: '240px' }, onclick: () => navigate('menu') }, '献立を見る')
+          h('h1', { class: 'mt-16', style: { fontSize: '28px', fontWeight: 900 } }, '7品、決定！'),
+          h('p', { class: 'muted mt-8', style: { textAlign: 'center', lineHeight: 1.6 } },
+            'おつかれさま。\n次は献立リストで、どの料理をどの曜日にするか並べましょう。'
+              .split('\n').reduce((f, t, i) => (i ? [...f, h('br'), t] : [t]), [])),
+          h('button', { class: 'btn primary mt-32', style: { maxWidth: '240px' }, onclick: () => navigate('menu') }, '曜日を並べる →')
         )
       );
       cheer(); confettiBurst(40); confetti(80);
@@ -589,7 +591,8 @@ function startCards(root, weekId, result, learning) {
     setControls(false);   // 発表前は操作ボタンを無効化
     const i = session.dayIndex;
     const dish = session.current[i];
-    const card = dishCard(plan[i], dish, i);
+    const itemLabel = `${i + 1}品目`;
+    const card = dishCard(itemLabel, dish, i);
     stack.append(card);
 
     let revealed = false;
@@ -609,13 +612,12 @@ function startCards(root, weekId, result, learning) {
       card.classList.add('drumroll-shake');
       drumrollSound(showStage ? 1.5 : 0.85);
 
-      const dayLabel = `${plan[i].date}（${plan[i].label}）`;
       const wait = showStage ? 1550 : 880;
       setTimeout(() => {
         card.classList.remove('drumroll-shake');
         if (stage) { stage.classList.add('out'); setTimeout(() => stage.remove(), 450); }
         // カードをしならせて裏返し、裏面のレシピを出す。完了後に操作を有効化
-        curlReveal(card, dish, dayLabel, () => {
+        curlReveal(card, dish, itemLabel, () => {
           const doReject = () => openReasonOverlay(card, reject);   // 却下は必ず理由を選ぶ
           attachSwipe(card, { onAccept: accept, onReject: doReject });
           acceptBtn.onclick = accept;
@@ -637,8 +639,8 @@ function startCards(root, weekId, result, learning) {
   mountTop();
 }
 
-function dishCard(day, dish, idx) {
-  const dayLabel = `${day.date}（${day.label}）`;
+function dishCard(itemLabel, dish, idx) {
+  const dayLabel = itemLabel;   // 「N品目」（曜日はリストで後から割り当てる）
   // 表面：料理の中身
   const ingredients = Array.isArray(dish.ingredients) ? dish.ingredients : [];
   const seasonings = Array.isArray(dish.seasonings) ? dish.seasonings : [];
